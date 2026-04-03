@@ -15,10 +15,10 @@ let cookieExpiry = 0;
  * Sangam CRM (by Enjay IT Solutions) does NOT expose a standard REST API.
  * All data access is through session-authenticated web pages with CSRF tokens.
  * This module uses Puppeteer to:
- *   1. Login via the web form
- *   2. Navigate to the Placements list
- *   3. Extract all placement data from the rendered DOM
- *   4. Upsert records into the local SQLite database
+ * 1. Login via the web form
+ * 2. Navigate to the Placements list
+ * 3. Extract all placement data from the rendered DOM
+ * 4. Upsert records into the local SQLite database
  */
 
 async function getPuppeteer() {
@@ -63,11 +63,7 @@ async function launchBrowser() {
 
 async function closeBrowser() {
   if (browser) {
-    try {
-      await browser.close();
-    } catch (e) {
-      // ignore
-    }
+    try { await browser.close(); } catch (e) { /* ignore */ }
     browser = null;
   }
 }
@@ -95,11 +91,11 @@ async function loginAndGetPage() {
       return page;
     }
 
-    // Fill login form
-    await page.waitForSelector('input[name="email"], input[type="email"], input[name="username"]', { timeout: 10000 });
+    // Fill login form - Sangam uses name="login" for the username/email field
+    await page.waitForSelector('input[name="login"], input#email, input[name="username"]', { timeout: 15000 });
 
-    // Try email field first, then username
-    const emailField = await page.$('input[name="email"]') || await page.$('input[type="email"]');
+    // Try login field first (Sangam CRM uses name="login"), then fallback to id or name
+    const emailField = await page.$('input[name="login"]') || await page.$('input#email') || await page.$('input[name="email"]');
     const passwordField = await page.$('input[name="password"]') || await page.$('input[type="password"]');
 
     if (!emailField || !passwordField) {
@@ -132,7 +128,6 @@ async function loginAndGetPage() {
 
     logger.info('Sangam CRM login successful', { url: page.url() });
     return page;
-
   } catch (err) {
     logger.error('Sangam CRM login error', { error: err.message });
     return null;
@@ -219,7 +214,11 @@ async function scrapePlacements(page) {
     // Check for page 2 (if more than 100 entries)
     const nextBtn = await page.$('a:has-text("Next")');
     if (nextBtn) {
-      const isDisabled = await page.evaluate(el => el.classList.contains('disabled') || el.parentElement.classList.contains('disabled'), nextBtn);
+      const isDisabled = await page.evaluate(el =>
+        el.classList.contains('disabled') || el.parentElement.classList.contains('disabled'),
+        nextBtn
+      );
+
       if (!isDisabled) {
         await nextBtn.click();
         await new Promise(r => setTimeout(r, 3000));
@@ -249,7 +248,9 @@ async function scrapePlacements(page) {
               if (phoneCell && phoneCell.startsWith('[')) {
                 const phoneData = JSON.parse(phoneCell);
                 if (phoneData[0]?.phone_number) phone = phoneData[0].phone_number;
-              } else { phone = phoneCell || ''; }
+              } else {
+                phone = phoneCell || '';
+              }
             } catch(e) {}
 
             let email = '';
@@ -258,7 +259,9 @@ async function scrapePlacements(page) {
               if (emailCell && emailCell.startsWith('[')) {
                 const emailData = JSON.parse(emailCell);
                 if (emailData[0]?.email_address) email = emailData[0].email_address;
-              } else { email = emailCell || ''; }
+              } else {
+                email = emailCell || '';
+              }
             } catch(e) {}
 
             results.push({
@@ -267,7 +270,8 @@ async function scrapePlacements(page) {
               last_name: cells[4]?.textContent.trim() || '',
               risk_profile: cells[5]?.textContent.trim() || '',
               reference_number: cells[10]?.textContent.trim() || '',
-              phone, email,
+              phone,
+              email,
               nightly_rate: cells[14]?.textContent.trim() || '',
               created_at: cells[15]?.textContent.trim() || '',
               updated_at: cells[16]?.textContent.trim() || '',
@@ -284,7 +288,6 @@ async function scrapePlacements(page) {
 
     logger.info(`Scraped ${placements.length} placements from CRM`);
     return placements;
-
   } catch (err) {
     logger.error('Failed to scrape placements', { error: err.message });
     return [];
@@ -339,10 +342,7 @@ function processEntries(entries) {
 
         upsert.run(mapped);
       } catch (err) {
-        logger.error('Error processing CRM record', {
-          error: err.message,
-          record: record.sangam_id
-        });
+        logger.error('Error processing CRM record', { error: err.message, record: record.sangam_id });
       }
     }
   });
@@ -374,7 +374,6 @@ async function syncFromCRM() {
     } else {
       logger.warn('CRM sync: No placements found');
     }
-
   } catch (err) {
     logger.error('CRM sync failed', { error: err.message });
     errors++;
@@ -387,7 +386,9 @@ async function syncFromCRM() {
 
 // Lightweight module/field list stubs (not available without REST API)
 async function getModuleList() {
-  return { modules: ['Placements', 'Bookings', 'Properties', 'Councils', 'Maintenance Jobs', 'Landlords/Agents'] };
+  return {
+    modules: ['Placements', 'Bookings', 'Properties', 'Councils', 'Maintenance Jobs', 'Landlords/Agents']
+  };
 }
 
 async function getFieldList(moduleName) {
@@ -397,9 +398,4 @@ async function getFieldList(moduleName) {
   };
 }
 
-module.exports = {
-  syncFromCRM,
-  getModuleList,
-  getFieldList,
-  processEntries
-};
+module.exports = { syncFromCRM, getModuleList, getFieldList, processEntries };
