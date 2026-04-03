@@ -8,6 +8,7 @@ const cookieParser = require('cookie-parser');
 const session = require('express-session');
 const logger = require('./services/logger');
 const { initialize } = require('./db/database');
+const { syncFromCRM } = require('./services/sangamClient');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -60,12 +61,39 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
+// Background CRM sync
+const SYNC_INTERVAL = (process.env.CRM_SYNC_INTERVAL || 2) * 60 * 1000; // Default 2 minutes
+let syncInProgress = false;
+
+async function backgroundSync() {
+  if (syncInProgress) return;
+  syncInProgress = true;
+  try {
+    const result = await syncFromCRM();
+    if (result.synced > 0) {
+      logger.info(`Background CRM sync: ${result.synced} records synced`);
+    }
+  } catch (err) {
+    logger.error('Background CRM sync error', { error: err.message });
+  } finally {
+    syncInProgress = false;
+  }
+}
+
 // Start
 async function start() {
   await initialize();
   app.listen(PORT, '0.0.0.0', () => {
     logger.info(`CARE Check-In/Out System running on port ${PORT}`);
     logger.info(`Dashboard: http://localhost:${PORT}`);
+
+    // Initial CRM sync on startup (non-blocking)
+    logger.info('Running initial CRM sync...');
+    backgroundSync();
+
+    // Schedule recurring sync
+    setInterval(backgroundSync, SYNC_INTERVAL);
+    logger.info(`CRM auto-sync scheduled every ${SYNC_INTERVAL / 1000}s`);
   });
 }
 
