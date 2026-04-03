@@ -62,7 +62,7 @@ app.use((err, req, res, next) => {
 });
 
 // Background CRM sync
-const SYNC_INTERVAL = (process.env.CRM_SYNC_INTERVAL || 2) * 60 * 1000; // Default 2 minutes
+const SYNC_INTERVAL = (process.env.CRM_SYNC_INTERVAL || 5) * 60 * 1000; // Default 5 minutes (Puppeteer-based)
 let syncInProgress = false;
 
 async function backgroundSync() {
