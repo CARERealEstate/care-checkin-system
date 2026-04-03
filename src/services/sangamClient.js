@@ -82,19 +82,15 @@ async function loginAndGetPage() {
   page.setDefaultNavigationTimeout(30000);
 
   try {
-    // Navigate to login page
     await page.goto(`${SANGAM_URL}/login`, { waitUntil: 'networkidle2' });
 
-    // Check if already logged in (redirected to dashboard)
     if (!page.url().includes('/login')) {
       logger.info('Already authenticated with Sangam CRM');
       return page;
     }
 
-    // Fill login form - Sangam uses name="login" for the username/email field
     await page.waitForSelector('input[name="login"], input#email, input[name="username"]', { timeout: 15000 });
 
-    // Try login field first (Sangam CRM uses name="login"), then fallback to id or name
     const emailField = await page.$('input[name="login"]') || await page.$('input#email') || await page.$('input[name="email"]');
     const passwordField = await page.$('input[name="password"]') || await page.$('input[type="password"]');
 
@@ -106,7 +102,6 @@ async function loginAndGetPage() {
     await emailField.type(SANGAM_EMAIL, { delay: 50 });
     await passwordField.type(SANGAM_PASSWORD, { delay: 50 });
 
-    // Submit form
     const submitBtn = await page.$('button[type="submit"]') || await page.$('input[type="submit"]');
     if (submitBtn) {
       await Promise.all([
@@ -120,7 +115,6 @@ async function loginAndGetPage() {
       ]);
     }
 
-    // Check if login succeeded
     if (page.url().includes('/login')) {
       logger.error('Sangam CRM login failed - still on login page');
       return null;
@@ -136,26 +130,37 @@ async function loginAndGetPage() {
 
 async function scrapePlacements(page) {
   try {
-    // Navigate to placements list (internally mapped to /leads)
     await page.goto(`${SANGAM_URL}/leads`, { waitUntil: 'networkidle2' });
 
-    // Wait for the data table to render with real data
     await page.waitForFunction(() => {
       const links = document.querySelectorAll('table tbody a[href*="/leads/"]');
       return links.length > 0;
     }, { timeout: 15000 });
 
-    // Small delay for all rows to render
     await new Promise(r => setTimeout(r, 2000));
 
-    // Check if we can show more entries (default might be limited)
-    const show100 = await page.$('a:has-text("100")');
-    if (show100) {
-      await show100.click();
+    // Try to show more entries using page.evaluate (Puppeteer compatible)
+    const clicked100 = await page.evaluate(() => {
+      const links = document.querySelectorAll('a');
+      for (const link of links) {
+        if (link.textContent.trim() === '100') {
+          link.click();
+          return true;
+        }
+      }
+      const select = document.querySelector('select[name*="length"], .dataTables_length select');
+      if (select) {
+        select.value = '100';
+        select.dispatchEvent(new Event('change'));
+        return true;
+      }
+      return false;
+    });
+
+    if (clicked100) {
       await new Promise(r => setTimeout(r, 3000));
     }
 
-    // Extract all placement data from the DOM
     const placements = await page.evaluate(() => {
       const rows = document.querySelectorAll('table tbody tr');
       const results = [];
@@ -169,7 +174,6 @@ async function scrapePlacements(page) {
 
         const uuid = link.href.split('/leads/')[1];
 
-        // Extract phone from JSON cell
         let phone = '';
         try {
           const phoneCell = cells[11]?.textContent.trim();
@@ -181,7 +185,6 @@ async function scrapePlacements(page) {
           }
         } catch(e) { /* ignore */ }
 
-        // Extract email from JSON cell
         let email = '';
         try {
           const emailCell = cells[13]?.textContent.trim();
@@ -211,79 +214,86 @@ async function scrapePlacements(page) {
       return results;
     });
 
-    // Check for page 2 (if more than 100 entries)
-    const nextBtn = await page.$('a:has-text("Next")');
-    if (nextBtn) {
-      const isDisabled = await page.evaluate(el =>
-        el.classList.contains('disabled') || el.parentElement.classList.contains('disabled'),
-        nextBtn
-      );
+    // Check for pagination using page.evaluate (Puppeteer compatible)
+    const hasNextPage = await page.evaluate(() => {
+      const links = document.querySelectorAll('a');
+      for (const link of links) {
+        const text = link.textContent.trim();
+        if (text === 'Next' || text === 'Next \u00bb' || text === '\u203a' || text === '\u00bb') {
+          const isDisabled = link.classList.contains('disabled') ||
+            link.parentElement.classList.contains('disabled') ||
+            link.getAttribute('aria-disabled') === 'true';
+          if (!isDisabled) {
+            link.click();
+            return true;
+          }
+        }
+      }
+      return false;
+    });
 
-      if (!isDisabled) {
-        await nextBtn.click();
-        await new Promise(r => setTimeout(r, 3000));
+    if (hasNextPage) {
+      await new Promise(r => setTimeout(r, 3000));
 
-        // Wait for data to load
-        await page.waitForFunction(() => {
-          const links = document.querySelectorAll('table tbody a[href*="/leads/"]');
-          return links.length > 0;
-        }, { timeout: 10000 });
+      await page.waitForFunction(() => {
+        const links = document.querySelectorAll('table tbody a[href*="/leads/"]');
+        return links.length > 0;
+      }, { timeout: 10000 });
 
-        const page2 = await page.evaluate(() => {
-          const rows = document.querySelectorAll('table tbody tr');
-          const results = [];
+      const page2 = await page.evaluate(() => {
+        const rows = document.querySelectorAll('table tbody tr');
+        const results = [];
 
-          rows.forEach(row => {
-            const link = row.querySelector('a[href*="/leads/"]');
-            if (!link) return;
+        rows.forEach(row => {
+          const link = row.querySelector('a[href*="/leads/"]');
+          if (!link) return;
 
-            const cells = row.querySelectorAll('td');
-            if (cells.length < 10) return;
+          const cells = row.querySelectorAll('td');
+          if (cells.length < 10) return;
 
-            const uuid = link.href.split('/leads/')[1];
+          const uuid = link.href.split('/leads/')[1];
 
-            let phone = '';
-            try {
-              const phoneCell = cells[11]?.textContent.trim();
-              if (phoneCell && phoneCell.startsWith('[')) {
-                const phoneData = JSON.parse(phoneCell);
-                if (phoneData[0]?.phone_number) phone = phoneData[0].phone_number;
-              } else {
-                phone = phoneCell || '';
-              }
-            } catch(e) {}
+          let phone = '';
+          try {
+            const phoneCell = cells[11]?.textContent.trim();
+            if (phoneCell && phoneCell.startsWith('[')) {
+              const phoneData = JSON.parse(phoneCell);
+              if (phoneData[0]?.phone_number) phone = phoneData[0].phone_number;
+            } else {
+              phone = phoneCell || '';
+            }
+          } catch(e) {}
 
-            let email = '';
-            try {
-              const emailCell = cells[13]?.textContent.trim();
-              if (emailCell && emailCell.startsWith('[')) {
-                const emailData = JSON.parse(emailCell);
-                if (emailData[0]?.email_address) email = emailData[0].email_address;
-              } else {
-                email = emailCell || '';
-              }
-            } catch(e) {}
+          let email = '';
+          try {
+            const emailCell = cells[13]?.textContent.trim();
+            if (emailCell && emailCell.startsWith('[')) {
+              const emailData = JSON.parse(emailCell);
+              if (emailData[0]?.email_address) email = emailData[0].email_address;
+            } else {
+              email = emailCell || '';
+            }
+          } catch(e) {}
 
-            results.push({
-              sangam_id: uuid,
-              first_name: cells[3]?.textContent.trim() || '',
-              last_name: cells[4]?.textContent.trim() || '',
-              risk_profile: cells[5]?.textContent.trim() || '',
-              reference_number: cells[10]?.textContent.trim() || '',
-              phone,
-              email,
-              nightly_rate: cells[14]?.textContent.trim() || '',
-              created_at: cells[15]?.textContent.trim() || '',
-              updated_at: cells[16]?.textContent.trim() || '',
-              assigned_to: cells[18]?.textContent.trim() || ''
-            });
+          results.push({
+            sangam_id: uuid,
+            first_name: cells[3]?.textContent.trim() || '',
+            last_name: cells[4]?.textContent.trim() || '',
+            risk_profile: cells[5]?.textContent.trim() || '',
+            reference_number: cells[10]?.textContent.trim() || '',
+            phone,
+            email,
+            nightly_rate: cells[14]?.textContent.trim() || '',
+            created_at: cells[15]?.textContent.trim() || '',
+            updated_at: cells[16]?.textContent.trim() || '',
+            assigned_to: cells[18]?.textContent.trim() || ''
           });
-
-          return results;
         });
 
-        placements.push(...page2);
-      }
+        return results;
+      });
+
+      placements.push(...page2);
     }
 
     logger.info(`Scraped ${placements.length} placements from CRM`);
@@ -384,7 +394,6 @@ async function syncFromCRM() {
   return { synced, errors };
 }
 
-// Lightweight module/field list stubs (not available without REST API)
 async function getModuleList() {
   return {
     modules: ['Placements', 'Bookings', 'Properties', 'Councils', 'Maintenance Jobs', 'Landlords/Agents']
