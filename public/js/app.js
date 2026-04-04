@@ -314,3 +314,15 @@ document.addEventListener('DOMContentLoaded', () => {
   loadRecords();
   updateStepIndicator();
 });
+
+
+// Expose functions to global scope for inline onclick handlers
+window.navigateTo = navigateTo;
+window.nextStep = nextStep;
+window.prevStep = prevStep;
+window.submitCheckIn = submitCheckIn;
+window.clearSig = clearSig;
+window.switchSigMethod = switchSigMethod;
+window.updateTypedSig = updateTypedSig;
+window.toggleSignOnBehalf = toggleSignOnBehalf;
+window.downloadPDF = downloadPDF;
