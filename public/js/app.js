@@ -107,10 +107,8 @@ function clearSig(target) {
 function switchSigMethod(btn) {
   const target = btn.dataset.target;
   const method = btn.dataset.method;
-
   btn.parentElement.querySelectorAll('.sig-tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
-
   if (target === 'tenant') {
     tenantSigMethod = method;
     document.getElementById('tenant-draw').style.display = method === 'draw' ? '' : 'none';
@@ -188,18 +186,15 @@ function getInventoryData() {
 // ===== Submit Check-In =====
 async function submitCheckIn() {
   const values = getFormValues();
-
   if (!values.agent_name?.trim()) {
     showToast('Please enter the agent name', 'error');
     return;
   }
-
   const agentSig = getSignatureDataURL('agent');
   if (!agentSig) {
     showToast('Please provide the agent signature', 'error');
     return;
   }
-
   let tenantSig = null;
   if (signOnBehalf) {
     tenantSig = agentSig;
@@ -210,10 +205,8 @@ async function submitCheckIn() {
       return;
     }
   }
-
   const inventory = getInventoryData();
   document.getElementById('loading').style.display = '';
-
   try {
     const bookingRes = await fetch('/api/bookings', {
       method: 'POST',
@@ -234,7 +227,6 @@ async function submitCheckIn() {
     const booking = await bookingRes.json();
     if (!bookingRes.ok) throw new Error(booking.error || 'Failed to create booking');
     const bookingId = booking.id || booking.booking?.id;
-
     const formRes = await fetch('/api/forms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -243,7 +235,6 @@ async function submitCheckIn() {
     const formRecord = await formRes.json();
     if (!formRes.ok) throw new Error(formRecord.error || 'Failed to create form');
     const formId = formRecord.id || formRecord.form?.id;
-
     const formData = {
       housing_officer: values.housing_officer || '',
       unit_number: values.unit_number || '',
@@ -262,7 +253,6 @@ async function submitCheckIn() {
       signed_on_behalf: signOnBehalf,
       behalf_reason: values.behalf_reason || ''
     };
-
     const saveRes = await fetch(`/api/forms/${formId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -276,20 +266,15 @@ async function submitCheckIn() {
       })
     });
     if (!saveRes.ok) throw new Error('Failed to save form');
-
     const pdfRes = await fetch(`/api/pdf/generate/${formId}`, { method: 'POST' });
     if (!pdfRes.ok) throw new Error('Failed to generate PDF');
-
     document.getElementById('loading').style.display = 'none';
     showToast('Check-in complete! Downloading PDF...', 'success');
-
     const link = document.createElement('a');
     link.href = `/api/pdf/download/${formId}`;
     link.download = `checkin-${values.tenant_first_name}-${values.tenant_last_name}.pdf`;
     link.click();
-
     setTimeout(() => navigateTo('dashboard'), 1500);
-
   } catch (err) {
     document.getElementById('loading').style.display = 'none';
     console.error('Submit error:', err);
@@ -304,7 +289,6 @@ async function loadRecords() {
     const data = await res.json();
     const bookings = data.bookings || [];
     const container = document.getElementById('records-list');
-
     if (bookings.length === 0) {
       container.innerHTML = `<div class="empty-state">
         <i class="fas fa-clipboard-list"></i>
@@ -314,13 +298,11 @@ async function loadRecords() {
       document.getElementById('btn-empty-checkin')?.addEventListener('click', () => navigateTo('new-checkin'));
       return;
     }
-
     container.innerHTML = bookings.map(b => {
       const status = b.status || 'active';
       const statusClass = status === 'checked_in' ? 'signed' : status === 'completed' ? 'completed' : 'draft';
       const statusText = status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       const hasForm = b.forms && b.forms.some(f => f.type === 'check_in' && f.status !== 'draft');
-
       return `<div class="record-card">
         <div class="record-info">
           <h3>${b.tenant_first_name} ${b.tenant_last_name}</h3>
@@ -336,12 +318,9 @@ async function loadRecords() {
         </div>
       </div>`;
     }).join('');
-
-    // Bind download buttons
     container.querySelectorAll('[data-download-booking]').forEach(btn => {
       btn.addEventListener('click', () => downloadPDF(parseInt(btn.dataset.downloadBooking)));
     });
-
   } catch (err) {
     console.error('Load error:', err);
   }
@@ -400,6 +379,102 @@ function showToast(msg, type) {
   setTimeout(() => toast.className = 'toast', 3000);
 }
 
+// ===== Reference Number Auto-Generation =====
+const councilCodes = {
+  'havant': 'HBC', 'havant borough council': 'HBC', 'havant borough': 'HBC', 'hbc': 'HBC',
+  'gosport': 'GBC', 'gosport borough council': 'GBC', 'gosport borough': 'GBC', 'gbc': 'GBC',
+  'chichester': 'CDC', 'chichester district council': 'CDC', 'chichester district': 'CDC', 'cdc': 'CDC',
+  'portsmouth': 'PCC', 'portsmouth city council': 'PCC', 'pcc': 'PCC',
+  'fareham': 'FBC', 'fareham borough council': 'FBC', 'fareham borough': 'FBC', 'fbc': 'FBC',
+  'east hampshire': 'EHDC', 'east hampshire district council': 'EHDC', 'ehdc': 'EHDC',
+  'winchester': 'WCC', 'winchester city council': 'WCC', 'wcc': 'WCC',
+  'eastleigh': 'EBC', 'eastleigh borough council': 'EBC', 'ebc': 'EBC',
+  'southampton': 'SCC', 'southampton city council': 'SCC', 'scc': 'SCC',
+  'arun': 'ADC', 'arun district council': 'ADC', 'adc': 'ADC',
+  'basingstoke': 'BDBC', 'basingstoke and deane': 'BDBC', 'bdbc': 'BDBC',
+  'new forest': 'NFDC', 'new forest district council': 'NFDC', 'nfdc': 'NFDC',
+  'rushmoor': 'RBC', 'rushmoor borough council': 'RBC', 'rbc': 'RBC',
+  'test valley': 'TVBC', 'test valley borough council': 'TVBC', 'tvbc': 'TVBC',
+  'brighton': 'BHCC', 'brighton and hove': 'BHCC', 'bhcc': 'BHCC',
+  'crawley': 'CBC', 'crawley borough council': 'CBC', 'cbc': 'CBC',
+  'worthing': 'WBC', 'worthing borough council': 'WBC', 'wbc': 'WBC',
+  'adur': 'ADDC', 'adur district council': 'ADDC',
+  'mid sussex': 'MSDC', 'mid sussex district council': 'MSDC', 'msdc': 'MSDC',
+  'horsham': 'HDC', 'horsham district council': 'HDC', 'hdc': 'HDC',
+  'isle of wight': 'IOW', 'isle of wight council': 'IOW', 'iow': 'IOW'
+};
+
+function getCouncilCode(councilName) {
+  if (!councilName) return '';
+  const key = councilName.trim().toLowerCase();
+  if (councilCodes[key]) return councilCodes[key];
+  for (const [name, code] of Object.entries(councilCodes)) {
+    if (key.includes(name) || name.includes(key)) return code;
+  }
+  return councilName.trim().split(/\s+/).map(w => w[0]?.toUpperCase() || '').join('');
+}
+
+function abbreviateProperty(address) {
+  if (!address) return '';
+  let cleaned = address.replace(/,?\s*[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\s*$/i, '').trim();
+  cleaned = cleaned.replace(/,\s*$/, '').trim();
+  const parts = cleaned.split(',');
+  while (parts.length > 1) {
+    const last = parts[parts.length - 1].trim();
+    if (!/\d/.test(last)) {
+      parts.pop();
+    } else {
+      break;
+    }
+  }
+  cleaned = parts.join(',').trim();
+  let prefix = '';
+  let rest = cleaned;
+  const flatMatch = rest.match(/^(?:flat|flt)\s*(\d+[a-z]?)/i);
+  if (flatMatch) {
+    prefix = 'F' + flatMatch[1].toUpperCase();
+    rest = rest.substring(flatMatch[0].length).replace(/^[\s,]+/, '');
+  }
+  const unitMatch = rest.match(/^(?:unit|room)\s*(\d+[a-z]?)/i);
+  if (!flatMatch && unitMatch) {
+    prefix = 'U' + unitMatch[1].toUpperCase();
+    rest = rest.substring(unitMatch[0].length).replace(/^[\s,]+/, '');
+  }
+  const numMatch = rest.match(/^(\d+[a-z]?)\s+(.+)/i);
+  if (numMatch) {
+    const num = numMatch[1].toUpperCase();
+    const roadWords = numMatch[2].replace(/,.*$/, '').trim().split(/\s+/);
+    const initials = roadWords.map(w => w[0]?.toUpperCase() || '').join('');
+    return prefix + num + initials;
+  }
+  const words = rest.replace(/,.*$/, '').trim().split(/\s+/).filter(w => w.length > 0);
+  const initials = words.map(w => w[0]?.toUpperCase() || '').join('');
+  return prefix + initials;
+}
+
+function formatDateForRef(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return '';
+  return parts[2] + parts[1] + parts[0];
+}
+
+function generateReference() {
+  const form = document.getElementById('checkin-form');
+  const council = form.querySelector('[name="council_name"]')?.value || '';
+  const address = form.querySelector('[name="property_address"]')?.value || '';
+  const checkinDate = form.querySelector('[name="checkin_date"]')?.value || '';
+  const code = getCouncilCode(council);
+  const prop = abbreviateProperty(address);
+  const dateRef = formatDateForRef(checkinDate);
+  const refField = form.querySelector('[name="reference_number"]');
+  if (refField && (code || prop || dateRef)) {
+    refField.value = code + prop + dateRef;
+    refField.style.borderColor = 'var(--care-green)';
+    setTimeout(() => refField.style.borderColor = '', 2000);
+  }
+}
+
 // ===== Init & Event Binding =====
 document.addEventListener('DOMContentLoaded', () => {
   loadRecords();
@@ -408,55 +483,47 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function bindEventListeners() {
-  // Sidebar navigation
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => navigateTo(item.dataset.page));
   });
-
-  // "New Check-In" header button
   const headerBtn = document.querySelector('#page-dashboard .page-header .btn-primary');
   if (headerBtn) headerBtn.addEventListener('click', () => navigateTo('new-checkin'));
-
-  // Step 1: Next button
   const step1 = document.querySelector('.form-step[data-step="1"]');
   if (step1) {
     step1.querySelector('.btn-primary')?.addEventListener('click', nextStep);
   }
-
-  // Step 2: Back & Next
   const step2 = document.querySelector('.form-step[data-step="2"]');
   if (step2) {
     step2.querySelector('.btn-outline')?.addEventListener('click', prevStep);
     step2.querySelector('.btn-primary')?.addEventListener('click', nextStep);
   }
-
-  // Step 3: Back & Next
   const step3 = document.querySelector('.form-step[data-step="3"]');
   if (step3) {
     step3.querySelector('.btn-outline')?.addEventListener('click', prevStep);
     step3.querySelector('.btn-primary')?.addEventListener('click', nextStep);
   }
-
-  // Step 4: Back & Submit
   const step4 = document.querySelector('.form-step[data-step="4"]');
   if (step4) {
     step4.querySelector('.btn-outline')?.addEventListener('click', prevStep);
     step4.querySelector('.btn-success')?.addEventListener('click', submitCheckIn);
   }
-
-  // Signature method toggles
   document.querySelectorAll('.sig-tab').forEach(tab => {
     tab.addEventListener('click', () => switchSigMethod(tab));
   });
-
-  // Clear signature buttons
   document.querySelector('#tenant-draw .btn')?.addEventListener('click', () => clearSig('tenant'));
   document.querySelector('#agent-draw .btn')?.addEventListener('click', () => clearSig('agent'));
-
-  // Typed signature inputs
   document.getElementById('tenant-typed-sig')?.addEventListener('input', () => updateTypedSig('tenant'));
   document.getElementById('agent-typed-sig')?.addEventListener('input', () => updateTypedSig('agent'));
-
-  // Sign on behalf checkbox
   document.getElementById('sign-on-behalf')?.addEventListener('change', toggleSignOnBehalf);
+
+  // Auto-generate reference number when council, address, or date change
+  const refTriggers = ['council_name', 'property_address', 'checkin_date'];
+  const form = document.getElementById('checkin-form');
+  refTriggers.forEach(name => {
+    const input = form?.querySelector(`[name="${name}"]`);
+    if (input) {
+      input.addEventListener('input', generateReference);
+      input.addEventListener('change', generateReference);
+    }
+  });
 }
