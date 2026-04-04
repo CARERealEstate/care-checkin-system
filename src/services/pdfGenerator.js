@@ -178,6 +178,12 @@ function page1_checkinForm(booking, form, formData) {
 
         <div class="field-row" style="margin-top:6px"><span class="field-label" style="min-width:140px">PET DEPOSIT REQUIRED</span><span class="field-line">${formData.pet_deposit||''}</span></div>
 
+        <div class="checkbox-row" style="margin-top:8px">
+          <span style="font-weight:700;font-size:9px;letter-spacing:0.3px">PAYING BILLS?</span>
+          <span style="font-weight:700;font-size:12px;${formData.paying_bills==='yes'?'border:2.5px solid #e74c3c;border-radius:50%;padding:1px 5px;':''}">YES</span>
+          <span style="font-weight:700;font-size:12px;${formData.paying_bills==='no'?'border:2.5px solid #e74c3c;border-radius:50%;padding:1px 5px;':''}">NO</span>
+        </div>
+
         <div class="field-row" style="margin-top:8px"><span class="field-label" style="min-width:50px">NOTES</span><span class="field-line">${formData.condition_notes||''}</span></div>
         <div style="height:18px;border-bottom:1px solid #999;margin:4px 0"></div>
         <div style="height:18px;border-bottom:1px solid #999;margin:4px 0"></div>
@@ -228,7 +234,7 @@ function page1_checkinForm(booking, form, formData) {
 }
 
 // ===== PAGE 2: WELCOME PACK =====
-function page2_welcomePack(booking, form) {
+function page2_welcomePack(booking, form, formData) {
   return `<div class="page">
     ${CARE_LOGO_HTML}
 
@@ -255,7 +261,11 @@ function page2_welcomePack(booking, form) {
     <p class="body-text">If you are in a ground or first floor flat, then your fire exit points are the same as your entrance located on ground floor. In case of fire please dial <span class="red">999</span> and contact Emergency Services. If you are in a house, then your fire exit points are the same as your entrance and the back door leading to your garden and ground floor windows if reachable. In case of fire please dial 999 and contact Emergency Services.</p>
 
     <div class="section-heading">Bills:</div>
-    <p class="body-text">Are the bills paid by the placement?<br><strong>YES / NO</strong> &nbsp;&nbsp; <span class="red">(CARE Agent circle one)</span></p>
+    <p class="body-text">Are the bills paid by the placement?<br>
+        <span style="font-weight:700;font-size:13px;${formData.paying_bills==='yes'?'border:3px solid #e74c3c;border-radius:50%;padding:2px 6px;':''}">YES</span>
+        &nbsp;/&nbsp;
+        <span style="font-weight:700;font-size:13px;${formData.paying_bills==='no'?'border:3px solid #e74c3c;border-radius:50%;padding:2px 6px;':''}">NO</span>
+      </p>
     <p class="body-text"><span class="bold italic">If you are responsible</span> for the bills, upon moving in our Utilities Manager will contact you to discuss how to move them into your name. Please do not do this until our team have spoken to you, to ensure a smooth process.</p>
     <p class="body-text">If your meters are <span class="bold italic">pre-pay</span>, the top up cards are provided to you and the <span class="bold italic">responsibility of topping them up is yours.</span></p>
 
@@ -464,7 +474,7 @@ function buildCheckInHTML(booking, form, evidence) {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>CARE Check-In Pack â ${booking.tenant_first_name} ${booking.tenant_last_name}</title>${baseStyles()}</head><body>
     <button class="print-btn no-print" onclick="window.print()">â¬ Print / Save as PDF</button>
     ${page1_checkinForm(booking, form, fd)}
-    ${page2_welcomePack(booking, form)}
+    ${page2_welcomePack(booking, form, fd)}
     ${page3_termsAndConditions()}
     ${page4_declarationAndSignatures(booking, form)}
     ${page5_consentForm(booking, form, fd)}
