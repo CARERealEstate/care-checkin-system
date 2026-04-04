@@ -58,7 +58,8 @@ router.get('/download/:formId', (req, res) => {
 
     if (content.startsWith('<!DOCTYPE') || content.startsWith('<html')) {
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.send(content);
+      res.setHeader('Content-Disposition', 'inline');
+      return res.send(Buffer.from(content, 'utf-8'));
     }
 
     const tenantName = `${booking.tenant_first_name}-${booking.tenant_last_name}`.replace(/\s+/g, '-');
