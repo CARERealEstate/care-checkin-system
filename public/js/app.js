@@ -27,8 +27,9 @@ function navigateTo(page) {
 
 // ===== Step Navigation =====
 function showStep(step) {
-  document.querySelectorAll('.form-step').forEach(s => s.classList.remove('active'));
-  document.querySelector(`.form-step[data-step="${step}"]`)?.classList.add('active');
+  // Only toggle steps within the new-checkin form, not the detail page
+  document.querySelectorAll('#page-new-checkin .form-step').forEach(s => s.classList.remove('active'));
+  document.querySelector(`#page-new-checkin .form-step[data-step="${step}"]`)?.classList.add('active');
   updateStepIndicator();
   if (step === 4) setTimeout(initSignaturePads, 50);
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -99,12 +100,17 @@ function resizeCanvas(canvas) {
   const ratio = Math.max(window.devicePixelRatio || 1, 1);
   const parent = canvas.parentElement;
   // Use parent width for sizing, ensure canvas is visible
-  const w = parent ? parent.clientWidth : canvas.clientWidth || 400;
+  let w = parent ? parent.clientWidth : canvas.clientWidth || 400;
+  if (w < 100) w = 400; // Fallback if parent not visible yet
   const h = 150;
   canvas.width = w * ratio;
   canvas.height = h * ratio;
   canvas.style.width = w + 'px';
   canvas.style.height = h + 'px';
+  canvas.style.touchAction = 'none'; // Critical for tablet/mobile
+  canvas.style.msTouchAction = 'none';
+  canvas.style.userSelect = 'none';
+  canvas.style.webkitUserSelect = 'none';
   const ctx = canvas.getContext('2d');
   ctx.scale(ratio, ratio);
 }
@@ -264,6 +270,7 @@ async function submitCheckIn() {
       accommodation_type: values.accommodation_type || '',
       nightly_rate: values.nightly_rate || '',
       pet_deposit: values.pet_deposit || '',
+      paying_bills: values.paying_bills || '',
       condition_notes: values.condition_notes || '',
       inventory: inventory,
       consent_agreed: values.consent_agreed || false,
@@ -381,14 +388,18 @@ async function downloadPDF(bookingId) {
     const res = await fetch(`/api/bookings/${bookingId}`);
     const data = await res.json();
     const forms = data.forms || [];
-    const form = forms.find(f => f.type === 'check_in' && f.pdf_path);
-    if (form) {
-      window.open(`/api/pdf/download/${form.id}`, '_blank');
-    } else {
-      showToast('No PDF available for this record', 'error');
+    const form = forms.find(f => f.type === 'check_in');
+    if (!form) {
+      showToast('No check-in form found for this record', 'error');
+      return;
     }
+    // Always regenerate the PDF first (handles ephemeral storage on Railway)
+    showToast('Generating PDF...', 'success');
+    const genRes = await fetch(`/api/pdf/generate/${form.id}`, { method: 'POST' });
+    if (!genRes.ok) throw new Error('Failed to generate PDF');
+    window.open(`/api/pdf/download/${form.id}`, '_blank');
   } catch (err) {
-    showToast('Error downloading PDF', 'error');
+    showToast('Error downloading PDF: ' + err.message, 'error');
   }
 }
 
@@ -412,7 +423,7 @@ async function viewRecord(bookingId) {
 
     // Populate detail fields
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val || '—'; };
+    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val || 'â'; };
 
     setVal('detail-first-name', b.tenant_first_name);
     setVal('detail-last-name', b.tenant_last_name);
@@ -430,6 +441,7 @@ async function viewRecord(bookingId) {
     setVal('detail-accommodation', formData.accommodation_type);
     setVal('detail-rate', b.nightly_rate || formData.nightly_rate);
     setVal('detail-pet-deposit', formData.pet_deposit);
+    setVal('detail-paying-bills', formData.paying_bills === 'yes' ? 'Yes' : formData.paying_bills === 'no' ? 'No' : formData.paying_bills || '');
     setVal('detail-placement-start', b.placement_start);
     setVal('detail-placement-end', b.placement_end);
     setVal('detail-notes', formData.condition_notes);
@@ -440,7 +452,7 @@ async function viewRecord(bookingId) {
     setText('detail-status', statusText);
 
     // Consent info
-    setText('detail-dob', formData.date_of_birth || '—');
+    setText('detail-dob', formData.date_of_birth || 'â');
     setText('detail-consent', formData.consent_agreed ? 'Yes' : 'No');
     setText('detail-excluded', formData.excluded_agencies || 'None');
 
@@ -465,12 +477,23 @@ async function viewRecord(bookingId) {
     }
     setText('detail-agent-name', checkInForm?.agent_name);
 
-    // PDF button
+    // PDF button - always show if there's a check-in form (regenerates on click)
     const pdfBtn = document.getElementById('detail-pdf-btn');
     if (pdfBtn) {
-      if (checkInForm?.pdf_path) {
+      if (checkInForm) {
         pdfBtn.style.display = '';
-        pdfBtn.onclick = () => window.open(`/api/pdf/download/${checkInForm.id}`, '_blank');
+        pdfBtn.onclick = async () => {
+          pdfBtn.disabled = true;
+          pdfBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+          try {
+            await fetch(`/api/pdf/generate/${checkInForm.id}`, { method: 'POST' });
+            window.open(`/api/pdf/download/${checkInForm.id}`, '_blank');
+          } catch(e) {
+            showToast('Error loading PDF', 'error');
+          }
+          pdfBtn.disabled = false;
+          pdfBtn.innerHTML = '<i class="fas fa-file-pdf"></i> View PDF';
+        };
       } else {
         pdfBtn.style.display = 'none';
       }
@@ -506,7 +529,7 @@ async function viewRecord(bookingId) {
       invBody.innerHTML = formData.inventory.map(item => `<tr>
         <td>${item.name}</td>
         <td style="text-align:center"><i class="fas fa-${item.in ? 'check text-green' : 'times text-red'}"></i></td>
-        <td>${item.comments || '—'}</td>
+        <td>${item.comments || 'â'}</td>
       </tr>`).join('');
     } else if (invBody) {
       invBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#999;">No inventory data</td></tr>';
@@ -514,7 +537,12 @@ async function viewRecord(bookingId) {
 
     // Navigate to detail page
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.getElementById('page-record-detail')?.classList.add('active');
+    const detailPage = document.getElementById('page-record-detail');
+    if (detailPage) {
+      detailPage.classList.add('active');
+      // Ensure all form-step sections inside detail page remain visible
+      detailPage.querySelectorAll('.form-step').forEach(s => s.classList.add('active'));
+    }
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -529,6 +557,7 @@ async function saveRecordEdits() {
   const getVal = (id) => document.getElementById(id)?.value || '';
 
   try {
+    // Update booking
     const res = await fetch(`/api/bookings/${currentViewBookingId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -541,11 +570,44 @@ async function saveRecordEdits() {
         council_name: getVal('detail-council'),
         reference_number: getVal('detail-ref'),
         placement_start: getVal('detail-placement-start'),
-        placement_end: getVal('detail-placement-end')
+        placement_end: getVal('detail-placement-end'),
+        nightly_rate: getVal('detail-rate')
       })
     });
-    if (!res.ok) throw new Error('Failed to save');
-    showToast('Record updated!', 'success');
+    if (!res.ok) throw new Error('Failed to save booking');
+
+    // Also update form data if we have a form
+    const bRes = await fetch(`/api/bookings/${currentViewBookingId}`);
+    const bData = await bRes.json();
+    const forms = bData.forms || [];
+    const checkInForm = forms.find(f => f.type === 'check_in');
+    if (checkInForm) {
+      let existingFormData = {};
+      try { existingFormData = JSON.parse(checkInForm.form_data); } catch(e) {}
+
+      // Merge edits into form data
+      existingFormData.housing_officer = getVal('detail-housing-officer');
+      existingFormData.unit_number = getVal('detail-unit');
+      existingFormData.nok_name = getVal('detail-nok-name');
+      existingFormData.nok_number = getVal('detail-nok-phone');
+      existingFormData.checkin_date = getVal('detail-checkin-date');
+      existingFormData.checkin_time = getVal('detail-checkin-time');
+      existingFormData.accommodation_type = getVal('detail-accommodation');
+      existingFormData.nightly_rate = getVal('detail-rate');
+      existingFormData.pet_deposit = getVal('detail-pet-deposit');
+      existingFormData.paying_bills = getVal('detail-paying-bills').toLowerCase() === 'yes' ? 'yes' : getVal('detail-paying-bills').toLowerCase() === 'no' ? 'no' : existingFormData.paying_bills;
+      existingFormData.condition_notes = getVal('detail-notes');
+
+      await fetch(`/api/forms/${checkInForm.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          form_data: JSON.stringify(existingFormData)
+        })
+      });
+    }
+
+    showToast('Record updated! Use Regenerate PDF to create an updated document.', 'success');
   } catch (err) {
     showToast('Error saving changes: ' + err.message, 'error');
   }
@@ -669,7 +731,7 @@ function abbreviateProperty(address) {
     return prefix + num + initials;
   }
 
-  // No street number — just take initials of remaining words (e.g. "Delme Court")
+  // No street number â just take initials of remaining words (e.g. "Delme Court")
   const words = rest.replace(/,.*$/, '').trim().split(/\s+/).filter(w => w.length > 0);
   const initials = words.map(w => w[0]?.toUpperCase() || '').join('');
   return prefix + initials;
