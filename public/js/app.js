@@ -5,20 +5,17 @@ let currentStep = 1;
 const totalSteps = 4;
 let tenantSigPad = null;
 let agentSigPad = null;
-let tenantSigMethod = 'draw';
+let tenantSigMethod = 'draw'; // 'draw' or 'type'
 let agentSigMethod = 'draw';
 let signOnBehalf = false;
 
 // ===== Navigation =====
-document.querySelectorAll('.nav-item').forEach(item => {
-  item.addEventListener('click', () => navigateTo(item.dataset.page));
-});
-
 function navigateTo(page) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.querySelector('.nav-item[data-page="' + page + '"]')?.classList.add('active');
+  document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-' + page)?.classList.add('active');
+  document.getElementById(`page-${page}`)?.classList.add('active');
+
   if (page === 'dashboard') loadRecords();
   if (page === 'new-checkin') {
     resetForm();
@@ -31,7 +28,7 @@ function navigateTo(page) {
 // ===== Step Navigation =====
 function showStep(step) {
   document.querySelectorAll('.form-step').forEach(s => s.classList.remove('active'));
-  document.querySelector('.form-step[data-step="' + step + '"]')?.classList.add('active');
+  document.querySelector(`.form-step[data-step="${step}"]`)?.classList.add('active');
   updateStepIndicator();
   if (step === 4) setTimeout(initSignaturePads, 50);
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -39,6 +36,7 @@ function showStep(step) {
 
 function updateStepIndicator() {
   const ind = document.getElementById('steps-indicator');
+  if (!ind) return;
   ind.innerHTML = '';
   for (let i = 1; i <= totalSteps; i++) {
     const dot = document.createElement('div');
@@ -49,17 +47,24 @@ function updateStepIndicator() {
 
 function nextStep() {
   if (currentStep === 1 && !validateStep1()) return;
-  if (currentStep < totalSteps) { currentStep++; showStep(currentStep); }
+  if (currentStep < totalSteps) {
+    currentStep++;
+    showStep(currentStep);
+  }
 }
+
 function prevStep() {
-  if (currentStep > 1) { currentStep--; showStep(currentStep); }
+  if (currentStep > 1) {
+    currentStep--;
+    showStep(currentStep);
+  }
 }
 
 function validateStep1() {
   const form = document.getElementById('checkin-form');
-  const required = ['tenant_first_name','tenant_last_name','property_address','council_name','checkin_date'];
+  const required = ['tenant_first_name', 'tenant_last_name', 'property_address', 'council_name', 'checkin_date'];
   for (const name of required) {
-    const input = form.querySelector('[name="' + name + '"]');
+    const input = form.querySelector(`[name="${name}"]`);
     if (!input.value.trim()) {
       input.focus();
       input.style.borderColor = 'var(--care-red)';
@@ -102,8 +107,10 @@ function clearSig(target) {
 function switchSigMethod(btn) {
   const target = btn.dataset.target;
   const method = btn.dataset.method;
+
   btn.parentElement.querySelectorAll('.sig-tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
+
   if (target === 'tenant') {
     tenantSigMethod = method;
     document.getElementById('tenant-draw').style.display = method === 'draw' ? '' : 'none';
@@ -116,8 +123,8 @@ function switchSigMethod(btn) {
 }
 
 function updateTypedSig(target) {
-  const input = document.getElementById(target + '-typed-sig');
-  const preview = document.getElementById(target + '-typed-preview');
+  const input = document.getElementById(`${target}-typed-sig`);
+  const preview = document.getElementById(`${target}-typed-preview`);
   preview.textContent = input.value || '';
 }
 
@@ -128,10 +135,11 @@ function getSignatureDataURL(target) {
     if (pad && !pad.isEmpty()) return pad.toDataURL();
     return null;
   } else {
-    const text = document.getElementById(target + '-typed-sig').value.trim();
+    const text = document.getElementById(`${target}-typed-sig`).value.trim();
     if (!text) return null;
     const canvas = document.createElement('canvas');
-    canvas.width = 400; canvas.height = 100;
+    canvas.width = 400;
+    canvas.height = 100;
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#fafafa';
     ctx.fillRect(0, 0, 400, 100);
@@ -144,6 +152,7 @@ function getSignatureDataURL(target) {
   }
 }
 
+// ===== Sign on Behalf =====
 function toggleSignOnBehalf() {
   signOnBehalf = document.getElementById('sign-on-behalf').checked;
   document.getElementById('tenant-sig-section').style.display = signOnBehalf ? 'none' : '';
@@ -166,7 +175,12 @@ function getInventoryData() {
   document.querySelectorAll('#inventory-table tbody tr').forEach(row => {
     const cb = row.querySelector('input[type="checkbox"]');
     const comment = row.querySelector('.inv-comment');
-    items.push({ name: cb?.dataset.item || '', in: cb?.checked || false, comments: comment?.value || '', signed_for: '' });
+    items.push({
+      name: cb?.dataset.item || '',
+      in: cb?.checked || false,
+      comments: comment?.value || '',
+      signed_for: ''
+    });
   });
   return items;
 }
@@ -174,67 +188,108 @@ function getInventoryData() {
 // ===== Submit Check-In =====
 async function submitCheckIn() {
   const values = getFormValues();
-  if (!values.agent_name?.trim()) { showToast('Please enter the agent name', 'error'); return; }
+
+  if (!values.agent_name?.trim()) {
+    showToast('Please enter the agent name', 'error');
+    return;
+  }
+
   const agentSig = getSignatureDataURL('agent');
-  if (!agentSig) { showToast('Please provide the agent signature', 'error'); return; }
+  if (!agentSig) {
+    showToast('Please provide the agent signature', 'error');
+    return;
+  }
+
   let tenantSig = null;
   if (signOnBehalf) {
     tenantSig = agentSig;
   } else {
     tenantSig = getSignatureDataURL('tenant');
-    if (!tenantSig) { showToast('Please provide the tenant signature', 'error'); return; }
+    if (!tenantSig) {
+      showToast('Please provide the tenant signature', 'error');
+      return;
+    }
   }
+
   const inventory = getInventoryData();
   document.getElementById('loading').style.display = '';
+
   try {
     const bookingRes = await fetch('/api/bookings', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        tenant_first_name: values.tenant_first_name, tenant_last_name: values.tenant_last_name,
-        tenant_email: values.tenant_email || '', tenant_phone: values.tenant_phone || '',
-        property_address: values.property_address, council_name: values.council_name,
-        reference_number: values.reference_number || '', nightly_rate: values.nightly_rate || '',
-        placement_start: values.placement_start || values.checkin_date, placement_end: values.placement_end || ''
+        tenant_first_name: values.tenant_first_name,
+        tenant_last_name: values.tenant_last_name,
+        tenant_email: values.tenant_email || '',
+        tenant_phone: values.tenant_phone || '',
+        property_address: values.property_address,
+        council_name: values.council_name,
+        reference_number: values.reference_number || '',
+        nightly_rate: values.nightly_rate || '',
+        placement_start: values.placement_start || values.checkin_date,
+        placement_end: values.placement_end || ''
       })
     });
     const booking = await bookingRes.json();
     if (!bookingRes.ok) throw new Error(booking.error || 'Failed to create booking');
     const bookingId = booking.id || booking.booking?.id;
+
     const formRes = await fetch('/api/forms', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ booking_id: bookingId, type: 'check_in' })
     });
     const formRecord = await formRes.json();
     if (!formRes.ok) throw new Error(formRecord.error || 'Failed to create form');
     const formId = formRecord.id || formRecord.form?.id;
+
     const formData = {
-      housing_officer: values.housing_officer || '', unit_number: values.unit_number || '',
-      nok_name: values.nok_name || '', nok_number: values.nok_number || '',
-      checkin_date: values.checkin_date || '', checkin_time: values.checkin_time || '',
-      accommodation_type: values.accommodation_type || '', nightly_rate: values.nightly_rate || '',
-      pet_deposit: values.pet_deposit || '', condition_notes: values.condition_notes || '',
-      inventory: inventory, consent_agreed: values.consent_agreed || false,
-      date_of_birth: values.date_of_birth || '', excluded_agencies: values.excluded_agencies || '',
-      signed_on_behalf: signOnBehalf, behalf_reason: values.behalf_reason || ''
+      housing_officer: values.housing_officer || '',
+      unit_number: values.unit_number || '',
+      nok_name: values.nok_name || '',
+      nok_number: values.nok_number || '',
+      checkin_date: values.checkin_date || '',
+      checkin_time: values.checkin_time || '',
+      accommodation_type: values.accommodation_type || '',
+      nightly_rate: values.nightly_rate || '',
+      pet_deposit: values.pet_deposit || '',
+      condition_notes: values.condition_notes || '',
+      inventory: inventory,
+      consent_agreed: values.consent_agreed || false,
+      date_of_birth: values.date_of_birth || '',
+      excluded_agencies: values.excluded_agencies || '',
+      signed_on_behalf: signOnBehalf,
+      behalf_reason: values.behalf_reason || ''
     };
-    const saveRes = await fetch('/api/forms/' + formId, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+
+    const saveRes = await fetch(`/api/forms/${formId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        form_data: JSON.stringify(formData), tenant_signature: tenantSig,
-        agent_signature: agentSig, agent_name: values.agent_name,
-        signing_method: 'in_person', status: 'signed'
+        form_data: JSON.stringify(formData),
+        tenant_signature: tenantSig,
+        agent_signature: agentSig,
+        agent_name: values.agent_name,
+        signing_method: 'in_person',
+        status: 'signed'
       })
     });
     if (!saveRes.ok) throw new Error('Failed to save form');
-    const pdfRes = await fetch('/api/pdf/generate/' + formId, { method: 'POST' });
+
+    const pdfRes = await fetch(`/api/pdf/generate/${formId}`, { method: 'POST' });
     if (!pdfRes.ok) throw new Error('Failed to generate PDF');
+
     document.getElementById('loading').style.display = 'none';
     showToast('Check-in complete! Downloading PDF...', 'success');
+
     const link = document.createElement('a');
-    link.href = '/api/pdf/download/' + formId;
-    link.download = 'checkin-' + values.tenant_first_name + '-' + values.tenant_last_name + '.pdf';
+    link.href = `/api/pdf/download/${formId}`;
+    link.download = `checkin-${values.tenant_first_name}-${values.tenant_last_name}.pdf`;
     link.click();
+
     setTimeout(() => navigateTo('dashboard'), 1500);
+
   } catch (err) {
     document.getElementById('loading').style.display = 'none';
     console.error('Submit error:', err);
@@ -249,40 +304,75 @@ async function loadRecords() {
     const data = await res.json();
     const bookings = data.bookings || [];
     const container = document.getElementById('records-list');
+
     if (bookings.length === 0) {
-      container.innerHTML = '<div class="empty-state"><i class="fas fa-clipboard-list"></i><p>No check-in records yet</p><button class="btn btn-primary" onclick="navigateTo(\'new-checkin\')">Create your first check-in</button></div>';
+      container.innerHTML = `<div class="empty-state">
+        <i class="fas fa-clipboard-list"></i>
+        <p>No check-in records yet</p>
+        <button class="btn btn-primary" id="btn-empty-checkin">Create your first check-in</button>
+      </div>`;
+      document.getElementById('btn-empty-checkin')?.addEventListener('click', () => navigateTo('new-checkin'));
       return;
     }
+
     container.innerHTML = bookings.map(b => {
       const status = b.status || 'active';
       const statusClass = status === 'checked_in' ? 'signed' : status === 'completed' ? 'completed' : 'draft';
       const statusText = status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       const hasForm = b.forms && b.forms.some(f => f.type === 'check_in' && f.status !== 'draft');
-      return '<div class="record-card"><div class="record-info"><h3>' + b.tenant_first_name + ' ' + b.tenant_last_name + '</h3><div class="record-meta"><span><i class="fas fa-building"></i> ' + (b.property_address || 'N/A') + '</span><span><i class="fas fa-university"></i> ' + (b.council_name || 'N/A') + '</span><span><i class="fas fa-calendar"></i> ' + formatDate(b.created_at) + '</span></div></div><div class="record-actions"><span class="status-badge status-' + statusClass + '">' + statusText + '</span>' + (hasForm ? '<button class="btn btn-sm btn-outline" onclick="downloadPDF(' + b.id + ')"><i class="fas fa-download"></i> PDF</button>' : '') + '</div></div>';
+
+      return `<div class="record-card">
+        <div class="record-info">
+          <h3>${b.tenant_first_name} ${b.tenant_last_name}</h3>
+          <div class="record-meta">
+            <span><i class="fas fa-building"></i> ${b.property_address || 'N/A'}</span>
+            <span><i class="fas fa-university"></i> ${b.council_name || 'N/A'}</span>
+            <span><i class="fas fa-calendar"></i> ${formatDate(b.created_at)}</span>
+          </div>
+        </div>
+        <div class="record-actions">
+          <span class="status-badge status-${statusClass}">${statusText}</span>
+          ${hasForm ? `<button class="btn btn-sm btn-outline" data-download-booking="${b.id}"><i class="fas fa-download"></i> PDF</button>` : ''}
+        </div>
+      </div>`;
     }).join('');
-  } catch (err) { console.error('Load error:', err); }
+
+    // Bind download buttons
+    container.querySelectorAll('[data-download-booking]').forEach(btn => {
+      btn.addEventListener('click', () => downloadPDF(parseInt(btn.dataset.downloadBooking)));
+    });
+
+  } catch (err) {
+    console.error('Load error:', err);
+  }
 }
 
 async function downloadPDF(bookingId) {
   try {
-    const res = await fetch('/api/bookings/' + bookingId);
+    const res = await fetch(`/api/bookings/${bookingId}`);
     const data = await res.json();
     const form = (data.booking?.forms || data.forms || []).find(f => f.type === 'check_in' && f.pdf_path);
     if (form) {
       const link = document.createElement('a');
-      link.href = '/api/pdf/download/' + form.id;
+      link.href = `/api/pdf/download/${form.id}`;
       link.download = 'checkin.pdf';
       link.click();
-    } else { showToast('No PDF available for this record', 'error'); }
-  } catch (err) { showToast('Error downloading PDF', 'error'); }
+    } else {
+      showToast('No PDF available for this record', 'error');
+    }
+  } catch (err) {
+    showToast('Error downloading PDF', 'error');
+  }
 }
 
 // ===== Utilities =====
 function resetForm() {
   const form = document.getElementById('checkin-form');
   form.reset();
-  tenantSigPad = null; agentSigPad = null;
-  tenantSigMethod = 'draw'; agentSigMethod = 'draw';
+  tenantSigPad = null;
+  agentSigPad = null;
+  tenantSigMethod = 'draw';
+  agentSigMethod = 'draw';
   signOnBehalf = false;
   document.getElementById('sign-on-behalf').checked = false;
   document.getElementById('tenant-sig-section').style.display = '';
@@ -298,8 +388,9 @@ function resetForm() {
 
 function formatDate(str) {
   if (!str) return '';
-  try { return new Date(str).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
-  catch { return str; }
+  try {
+    return new Date(str).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch { return str; }
 }
 
 function showToast(msg, type) {
@@ -309,20 +400,63 @@ function showToast(msg, type) {
   setTimeout(() => toast.className = 'toast', 3000);
 }
 
-// ===== Init =====
+// ===== Init & Event Binding =====
 document.addEventListener('DOMContentLoaded', () => {
   loadRecords();
   updateStepIndicator();
+  bindEventListeners();
 });
 
+function bindEventListeners() {
+  // Sidebar navigation
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => navigateTo(item.dataset.page));
+  });
 
-// Expose functions to global scope for inline onclick handlers
-window.navigateTo = navigateTo;
-window.nextStep = nextStep;
-window.prevStep = prevStep;
-window.submitCheckIn = submitCheckIn;
-window.clearSig = clearSig;
-window.switchSigMethod = switchSigMethod;
-window.updateTypedSig = updateTypedSig;
-window.toggleSignOnBehalf = toggleSignOnBehalf;
-window.downloadPDF = downloadPDF;
+  // "New Check-In" header button
+  const headerBtn = document.querySelector('#page-dashboard .page-header .btn-primary');
+  if (headerBtn) headerBtn.addEventListener('click', () => navigateTo('new-checkin'));
+
+  // Step 1: Next button
+  const step1 = document.querySelector('.form-step[data-step="1"]');
+  if (step1) {
+    step1.querySelector('.btn-primary')?.addEventListener('click', nextStep);
+  }
+
+  // Step 2: Back & Next
+  const step2 = document.querySelector('.form-step[data-step="2"]');
+  if (step2) {
+    step2.querySelector('.btn-outline')?.addEventListener('click', prevStep);
+    step2.querySelector('.btn-primary')?.addEventListener('click', nextStep);
+  }
+
+  // Step 3: Back & Next
+  const step3 = document.querySelector('.form-step[data-step="3"]');
+  if (step3) {
+    step3.querySelector('.btn-outline')?.addEventListener('click', prevStep);
+    step3.querySelector('.btn-primary')?.addEventListener('click', nextStep);
+  }
+
+  // Step 4: Back & Submit
+  const step4 = document.querySelector('.form-step[data-step="4"]');
+  if (step4) {
+    step4.querySelector('.btn-outline')?.addEventListener('click', prevStep);
+    step4.querySelector('.btn-success')?.addEventListener('click', submitCheckIn);
+  }
+
+  // Signature method toggles
+  document.querySelectorAll('.sig-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchSigMethod(tab));
+  });
+
+  // Clear signature buttons
+  document.querySelector('#tenant-draw .btn')?.addEventListener('click', () => clearSig('tenant'));
+  document.querySelector('#agent-draw .btn')?.addEventListener('click', () => clearSig('agent'));
+
+  // Typed signature inputs
+  document.getElementById('tenant-typed-sig')?.addEventListener('input', () => updateTypedSig('tenant'));
+  document.getElementById('agent-typed-sig')?.addEventListener('input', () => updateTypedSig('agent'));
+
+  // Sign on behalf checkbox
+  document.getElementById('sign-on-behalf')?.addEventListener('change', toggleSignOnBehalf);
+}
