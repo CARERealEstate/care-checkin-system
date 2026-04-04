@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CARE Real Estate â Check-In System</title>
+  <title>CARE Real Estate — Check-In System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -32,13 +32,13 @@
     <div id="page-dashboard" class="page active">
       <div class="page-header">
         <h1>Check-In Records</h1>
-        <button class="btn btn-primary"><i class="fas fa-plus"></i> New Check-In</button>
+        <button class="btn btn-primary" onclick="navigateTo('new-checkin')"><i class="fas fa-plus"></i> New Check-In</button>
       </div>
       <div id="records-list" class="records-list">
         <div class="empty-state">
           <i class="fas fa-clipboard-list"></i>
           <p>No check-in records yet</p>
-          <button class="btn btn-primary">Create your first check-in</button>
+          <button class="btn btn-primary" onclick="navigateTo('new-checkin')">Create your first check-in</button>
         </div>
       </div>
     </div>
@@ -133,7 +133,7 @@
           </div>
           <div class="step-actions">
             <div></div>
-            <button type="button" class="btn btn-primary">Next <i class="fas fa-arrow-right"></i></button>
+            <button type="button" class="btn btn-primary" onclick="nextStep()">Next <i class="fas fa-arrow-right"></i></button>
           </div>
         </div>
 
@@ -152,7 +152,7 @@
             </div>
             <div class="form-group">
               <label>Nightly Rate</label>
-              <input type="text" name="nightly_rate" placeholder="e.g. Â£65.00">
+              <input type="text" name="nightly_rate" placeholder="e.g. £65.00">
             </div>
             <div class="form-group">
               <label>Pet Deposit Required</label>
@@ -190,8 +190,8 @@
           </div>
 
           <div class="step-actions">
-            <button type="button" class="btn btn-outline"><i class="fas fa-arrow-left"></i> Back</button>
-            <button type="button" class="btn btn-primary">Next <i class="fas fa-arrow-right"></i></button>
+            <button type="button" class="btn btn-outline" onclick="prevStep()"><i class="fas fa-arrow-left"></i> Back</button>
+            <button type="button" class="btn btn-primary" onclick="nextStep()">Next <i class="fas fa-arrow-right"></i></button>
           </div>
         </div>
 
@@ -213,8 +213,8 @@
             </div>
           </div>
           <div class="step-actions">
-            <button type="button" class="btn btn-outline"><i class="fas fa-arrow-left"></i> Back</button>
-            <button type="button" class="btn btn-primary">Next <i class="fas fa-arrow-right"></i></button>
+            <button type="button" class="btn btn-outline" onclick="prevStep()"><i class="fas fa-arrow-left"></i> Back</button>
+            <button type="button" class="btn btn-primary" onclick="nextStep()">Next <i class="fas fa-arrow-right"></i></button>
           </div>
         </div>
 
@@ -224,22 +224,22 @@
 
           <!-- Sign on behalf toggle -->
           <div class="sign-behalf-toggle">
-            <label><input type="checkbox" id="sign-on-behalf"> <strong>Sign on behalf of tenant</strong> (tenant not present or no email)</label>
+            <label><input type="checkbox" id="sign-on-behalf" onchange="toggleSignOnBehalf()"> <strong>Sign on behalf of tenant</strong> (tenant not present or no email)</label>
           </div>
 
           <!-- Tenant Signature -->
           <div id="tenant-sig-section" class="sig-section">
             <h3>Tenant Signature</h3>
             <div class="sig-method-toggle">
-              <button type="button" class="sig-tab active" data-target="tenant" data-method="draw"><i class="fas fa-pen"></i> Draw</button>
-              <button type="button" class="sig-tab" data-target="tenant" data-method="type"><i class="fas fa-keyboard"></i> Type</button>
+              <button type="button" class="sig-tab active" data-target="tenant" data-method="draw" onclick="switchSigMethod(this)"><i class="fas fa-pen"></i> Draw</button>
+              <button type="button" class="sig-tab" data-target="tenant" data-method="type" onclick="switchSigMethod(this)"><i class="fas fa-keyboard"></i> Type</button>
             </div>
             <div class="sig-draw-area" id="tenant-draw">
               <canvas id="tenant-sig-canvas"></canvas>
-              <button type="button" class="btn btn-sm btn-outline">Clear</button>
+              <button type="button" class="btn btn-sm btn-outline" onclick="clearSig('tenant')">Clear</button>
             </div>
             <div class="sig-type-area" id="tenant-type" style="display:none;">
-              <input type="text" id="tenant-typed-sig" placeholder="Type full name...">
+              <input type="text" id="tenant-typed-sig" placeholder="Type full name..." oninput="updateTypedSig('tenant')">
               <div class="typed-sig-preview" id="tenant-typed-preview"></div>
             </div>
           </div>
@@ -261,25 +261,170 @@
               <input type="text" name="agent_name" required placeholder="Your name">
             </div>
             <div class="sig-method-toggle">
-              <button type="button" class="sig-tab active" data-target="agent" data-method="draw"><i class="fas fa-pen"></i> Draw</button>
-              <button type="button" class="sig-tab" data-target="agent" data-method="type"><i class="fas fa-keyboard"></i> Type</button>
+              <button type="button" class="sig-tab active" data-target="agent" data-method="draw" onclick="switchSigMethod(this)"><i class="fas fa-pen"></i> Draw</button>
+              <button type="button" class="sig-tab" data-target="agent" data-method="type" onclick="switchSigMethod(this)"><i class="fas fa-keyboard"></i> Type</button>
             </div>
             <div class="sig-draw-area" id="agent-draw">
               <canvas id="agent-sig-canvas"></canvas>
-              <button type="button" class="btn btn-sm btn-outline">Clear</button>
+              <button type="button" class="btn btn-sm btn-outline" onclick="clearSig('agent')">Clear</button>
             </div>
             <div class="sig-type-area" id="agent-type" style="display:none;">
-              <input type="text" id="agent-typed-sig" placeholder="Type full name...">
+              <input type="text" id="agent-typed-sig" placeholder="Type full name..." oninput="updateTypedSig('agent')">
               <div class="typed-sig-preview" id="agent-typed-preview"></div>
             </div>
           </div>
 
           <div class="step-actions">
-            <button type="button" class="btn btn-outline"><i class="fas fa-arrow-left"></i> Back</button>
-            <button type="button" class="btn btn-success"><i class="fas fa-file-pdf"></i> Complete & Generate PDF</button>
+            <button type="button" class="btn btn-outline" onclick="prevStep()"><i class="fas fa-arrow-left"></i> Back</button>
+            <button type="button" class="btn btn-success" onclick="submitCheckIn()"><i class="fas fa-file-pdf"></i> Complete & Generate PDF</button>
           </div>
         </div>
       </form>
+    </div>
+    <!-- Record Detail Page -->
+    <div id="page-record-detail" class="page">
+      <div class="page-header">
+        <h1><i class="fas fa-arrow-left" style="cursor:pointer;margin-right:12px;" onclick="navigateTo('dashboard')"></i> Record Details</h1>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline" id="detail-pdf-btn"><i class="fas fa-file-pdf"></i> View PDF</button>
+          <button class="btn btn-outline" id="detail-regen-btn"><i class="fas fa-redo"></i> Regenerate PDF</button>
+          <button class="btn btn-primary" onclick="saveRecordEdits()"><i class="fas fa-save"></i> Save Changes</button>
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <span class="status-badge" id="detail-status" style="font-size:14px;"></span>
+      </div>
+
+      <div class="form-step active">
+        <div class="step-title"><span class="step-num"><i class="fas fa-user"></i></span> Tenant & Property</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>First Name</label>
+            <input type="text" id="detail-first-name">
+          </div>
+          <div class="form-group">
+            <label>Last Name</label>
+            <input type="text" id="detail-last-name">
+          </div>
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="tel" id="detail-phone">
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="detail-email">
+          </div>
+          <div class="form-group full-width">
+            <label>Property Address</label>
+            <input type="text" id="detail-address">
+          </div>
+          <div class="form-group">
+            <label>Council</label>
+            <input type="text" id="detail-council">
+          </div>
+          <div class="form-group">
+            <label>Placement Ref</label>
+            <input type="text" id="detail-ref">
+          </div>
+          <div class="form-group">
+            <label>Housing Officer</label>
+            <input type="text" id="detail-housing-officer" readonly style="background:#f5f5f5;">
+          </div>
+          <div class="form-group">
+            <label>Unit Number</label>
+            <input type="text" id="detail-unit" readonly style="background:#f5f5f5;">
+          </div>
+          <div class="form-group">
+            <label>NOK Name</label>
+            <input type="text" id="detail-nok-name" readonly style="background:#f5f5f5;">
+          </div>
+          <div class="form-group">
+            <label>NOK Phone</label>
+            <input type="tel" id="detail-nok-phone" readonly style="background:#f5f5f5;">
+          </div>
+          <div class="form-group">
+            <label>Check-In Date</label>
+            <input type="date" id="detail-checkin-date" readonly style="background:#f5f5f5;">
+          </div>
+          <div class="form-group">
+            <label>Check-In Time</label>
+            <input type="time" id="detail-checkin-time" readonly style="background:#f5f5f5;">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-step active" style="margin-top:16px;">
+        <div class="step-title"><span class="step-num"><i class="fas fa-bed"></i></span> Accommodation</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Type</label>
+            <input type="text" id="detail-accommodation" readonly style="background:#f5f5f5;">
+          </div>
+          <div class="form-group">
+            <label>Nightly Rate</label>
+            <input type="text" id="detail-rate" readonly style="background:#f5f5f5;">
+          </div>
+          <div class="form-group">
+            <label>Pet Deposit</label>
+            <input type="text" id="detail-pet-deposit" readonly style="background:#f5f5f5;">
+          </div>
+          <div class="form-group">
+            <label>Placement Start</label>
+            <input type="date" id="detail-placement-start">
+          </div>
+          <div class="form-group">
+            <label>Placement End</label>
+            <input type="date" id="detail-placement-end">
+          </div>
+          <div class="form-group full-width">
+            <label>Property Notes</label>
+            <textarea id="detail-notes" rows="2" readonly style="background:#f5f5f5;"></textarea>
+          </div>
+        </div>
+
+        <div class="inventory-section" style="margin-top:16px;">
+          <h3>Inventory</h3>
+          <table class="inv-table">
+            <thead>
+              <tr><th>Item</th><th style="width:60px;text-align:center">Present</th><th>Comments</th></tr>
+            </thead>
+            <tbody id="detail-inventory-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="form-step active" style="margin-top:16px;">
+        <div class="step-title"><span class="step-num"><i class="fas fa-shield-alt"></i></span> Consent</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Date of Birth</label>
+            <span id="detail-dob" style="padding:8px 0;display:block;">—</span>
+          </div>
+          <div class="form-group">
+            <label>Consent Given</label>
+            <span id="detail-consent" style="padding:8px 0;display:block;">—</span>
+          </div>
+          <div class="form-group full-width">
+            <label>Excluded Agencies</label>
+            <span id="detail-excluded" style="padding:8px 0;display:block;">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-step active" style="margin-top:16px;">
+        <div class="step-title"><span class="step-num"><i class="fas fa-pen-nib"></i></span> Signatures</div>
+        <div style="display:flex;gap:32px;flex-wrap:wrap;">
+          <div>
+            <label style="font-weight:600;margin-bottom:8px;display:block;">Tenant Signature</label>
+            <img id="detail-tenant-sig" style="max-width:300px;border:1px solid #ddd;border-radius:8px;" alt="Tenant signature">
+          </div>
+          <div>
+            <label style="font-weight:600;margin-bottom:8px;display:block;">Agent: <span id="detail-agent-name">—</span></label>
+            <img id="detail-agent-sig" style="max-width:300px;border:1px solid #ddd;border-radius:8px;" alt="Agent signature">
+          </div>
+        </div>
+      </div>
     </div>
   </main>
 
