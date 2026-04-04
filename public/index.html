@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CARE Real Estate — Check-In System</title>
+  <title>CARE Real Estate â Check-In System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -152,11 +152,19 @@
             </div>
             <div class="form-group">
               <label>Nightly Rate</label>
-              <input type="text" name="nightly_rate" placeholder="e.g. £65.00">
+              <input type="text" name="nightly_rate" placeholder="e.g. Â£65.00">
             </div>
             <div class="form-group">
               <label>Pet Deposit Required</label>
               <input type="text" name="pet_deposit" placeholder="Amount or N/A">
+            </div>
+            <div class="form-group">
+              <label>Placement Paying Bills? <span class="req">*</span></label>
+              <select name="paying_bills">
+                <option value="">Select...</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
             </div>
             <div class="form-group">
               <label>Placement Start Date</label>
@@ -329,27 +337,27 @@
           </div>
           <div class="form-group">
             <label>Housing Officer</label>
-            <input type="text" id="detail-housing-officer" readonly style="background:#f5f5f5;">
+            <input type="text" id="detail-housing-officer">
           </div>
           <div class="form-group">
             <label>Unit Number</label>
-            <input type="text" id="detail-unit" readonly style="background:#f5f5f5;">
+            <input type="text" id="detail-unit">
           </div>
           <div class="form-group">
             <label>NOK Name</label>
-            <input type="text" id="detail-nok-name" readonly style="background:#f5f5f5;">
+            <input type="text" id="detail-nok-name">
           </div>
           <div class="form-group">
             <label>NOK Phone</label>
-            <input type="tel" id="detail-nok-phone" readonly style="background:#f5f5f5;">
+            <input type="tel" id="detail-nok-phone">
           </div>
           <div class="form-group">
             <label>Check-In Date</label>
-            <input type="date" id="detail-checkin-date" readonly style="background:#f5f5f5;">
+            <input type="date" id="detail-checkin-date">
           </div>
           <div class="form-group">
             <label>Check-In Time</label>
-            <input type="time" id="detail-checkin-time" readonly style="background:#f5f5f5;">
+            <input type="time" id="detail-checkin-time">
           </div>
         </div>
       </div>
@@ -359,15 +367,19 @@
         <div class="form-grid">
           <div class="form-group">
             <label>Type</label>
-            <input type="text" id="detail-accommodation" readonly style="background:#f5f5f5;">
+            <input type="text" id="detail-accommodation">
           </div>
           <div class="form-group">
             <label>Nightly Rate</label>
-            <input type="text" id="detail-rate" readonly style="background:#f5f5f5;">
+            <input type="text" id="detail-rate">
           </div>
           <div class="form-group">
             <label>Pet Deposit</label>
-            <input type="text" id="detail-pet-deposit" readonly style="background:#f5f5f5;">
+            <input type="text" id="detail-pet-deposit">
+          </div>
+          <div class="form-group">
+            <label>Paying Bills?</label>
+            <input type="text" id="detail-paying-bills">
           </div>
           <div class="form-group">
             <label>Placement Start</label>
@@ -379,7 +391,7 @@
           </div>
           <div class="form-group full-width">
             <label>Property Notes</label>
-            <textarea id="detail-notes" rows="2" readonly style="background:#f5f5f5;"></textarea>
+            <textarea id="detail-notes" rows="2"></textarea>
           </div>
         </div>
 
@@ -399,15 +411,15 @@
         <div class="form-grid">
           <div class="form-group">
             <label>Date of Birth</label>
-            <span id="detail-dob" style="padding:8px 0;display:block;">—</span>
+            <span id="detail-dob" style="padding:8px 0;display:block;">â</span>
           </div>
           <div class="form-group">
             <label>Consent Given</label>
-            <span id="detail-consent" style="padding:8px 0;display:block;">—</span>
+            <span id="detail-consent" style="padding:8px 0;display:block;">â</span>
           </div>
           <div class="form-group full-width">
             <label>Excluded Agencies</label>
-            <span id="detail-excluded" style="padding:8px 0;display:block;">—</span>
+            <span id="detail-excluded" style="padding:8px 0;display:block;">â</span>
           </div>
         </div>
       </div>
@@ -420,7 +432,7 @@
             <img id="detail-tenant-sig" style="max-width:300px;border:1px solid #ddd;border-radius:8px;" alt="Tenant signature">
           </div>
           <div>
-            <label style="font-weight:600;margin-bottom:8px;display:block;">Agent: <span id="detail-agent-name">—</span></label>
+            <label style="font-weight:600;margin-bottom:8px;display:block;">Agent: <span id="detail-agent-name">â</span></label>
             <img id="detail-agent-sig" style="max-width:300px;border:1px solid #ddd;border-radius:8px;" alt="Agent signature">
           </div>
         </div>
