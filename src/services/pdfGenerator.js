@@ -207,8 +207,8 @@ function page1_checkinForm(booking, form, formData) {
       <tr><th>INVENTORY</th><th style="width:40px;text-align:center">IN</th><th style="width:40px;text-align:center">OUT</th><th>SIGNED FOR</th><th>COMMENTS</th></tr>
       ${invItems.map(item => `<tr>
         <td>${item.name||''}</td>
-        <td style="text-align:center">${item.in?'<span class="inv-check">â</span>':''}</td>
-        <td style="text-align:center">${item.out?'<span class="inv-check">â</span>':''}</td>
+        <td style="text-align:center">${item.in?'<span class="inv-check">&#10003;</span>':''}</td>
+        <td style="text-align:center">${item.out?'<span class="inv-check">&#10003;</span>':''}</td>
         <td>${item.signed_for||''}</td>
         <td>${item.comments||''}</td>
       </tr>`).join('')}
@@ -218,9 +218,9 @@ function page1_checkinForm(booking, form, formData) {
     <div class="docs-grid">
       <div class="docs-left">
         <div class="doc-header">CHECK IN DOCUMENTS</div>
-        <div class="doc-row"><span class="inv-check">â</span> Check In Form</div>
-        <div class="doc-row"><span class="inv-check">â</span> Welcome Pack - T&Cs</div>
-        <div class="doc-row"><span class="inv-check">â</span> Information Consent Form</div>
+        <div class="doc-row"><span class="inv-check">&#10003;</span> Check In Form</div>
+        <div class="doc-row"><span class="inv-check">&#10003;</span> Welcome Pack - T&Cs</div>
+        <div class="doc-row"><span class="inv-check">&#10003;</span> Information Consent Form</div>
       </div>
       <div class="docs-right">
         <div class="doc-row" style="justify-content:flex-start;gap:12px"><span style="font-size:9px;font-weight:600;min-width:110px">Check out Date/ Time</span><span class="doc-value">${formData.checkout_date||''}</span></div>
@@ -262,10 +262,10 @@ function page2_welcomePack(booking, form, formData) {
 
     <div class="section-heading">Bills:</div>
     <p class="body-text">Are the bills paid by the placement?<br>
-        <span style="font-weight:700;font-size:13px;${formData.paying_bills==='yes'?'border:3px solid #e74c3c;border-radius:50%;padding:2px 6px;':''}">YES</span>
-        &nbsp;/&nbsp;
-        <span style="font-weight:700;font-size:13px;${formData.paying_bills==='no'?'border:3px solid #e74c3c;border-radius:50%;padding:2px 6px;':''}">NO</span>
-      </p>
+      <span style="font-weight:700;font-size:13px;${formData.paying_bills==='yes'?'border:3px solid #e74c3c;border-radius:50%;padding:2px 6px;':''}">YES</span>
+      &nbsp;/&nbsp;
+      <span style="font-weight:700;font-size:13px;${formData.paying_bills==='no'?'border:3px solid #e74c3c;border-radius:50%;padding:2px 6px;':''}">NO</span>
+    </p>
     <p class="body-text"><span class="bold italic">If you are responsible</span> for the bills, upon moving in our Utilities Manager will contact you to discuss how to move them into your name. Please do not do this until our team have spoken to you, to ensure a smooth process.</p>
     <p class="body-text">If your meters are <span class="bold italic">pre-pay</span>, the top up cards are provided to you and the <span class="bold italic">responsibility of topping them up is yours.</span></p>
 
@@ -362,15 +362,15 @@ function page5_consentForm(booking, form, formData) {
     </ul>
 
     <ul class="agency-list" style="list-style:none">
-      <li>â NHS and other Health Services, including my GP practice</li>
-      <li>â Early Intervention Service including the police</li>
-      <li>â Adult Services</li>
-      <li>â Mental Health Services</li>
-      <li>â Education Support Services</li>
-      <li>â Social Care</li>
-      <li>â Voluntary Sector Organisations</li>
-      <li>â Security Team</li>
-      <li>â Local Authorities</li>
+      <li>&bull; NHS and other Health Services, including my GP practice</li>
+      <li>&bull; Early Intervention Service including the police</li>
+      <li>&bull; Adult Services</li>
+      <li>&bull; Mental Health Services</li>
+      <li>&bull; Education Support Services</li>
+      <li>&bull; Social Care</li>
+      <li>&bull; Voluntary Sector Organisations</li>
+      <li>&bull; Security Team</li>
+      <li>&bull; Local Authorities</li>
     </ul>
 
     <p class="consent-text">Are there any agencies you do not want us to share or gather additional information with? Please list them here:</p>
@@ -378,7 +378,7 @@ function page5_consentForm(booking, form, formData) {
     <div style="border-bottom:1px solid #333;height:20px;margin:8px 0"></div>
 
     <div class="tick-row" style="margin-top:14px">
-      <div class="tick-box">${formData.consent_agreed?'â':''}</div>
+      <div class="tick-box">${formData.consent_agreed?'&#10003;':''}</div>
       <span>Tick here &nbsp;<strong><em>I agree to my information being shared and gathered between services.</em></strong></span>
     </div>
 
@@ -386,7 +386,7 @@ function page5_consentForm(booking, form, formData) {
 
     <div style="margin-top:14px">
       <div class="field-row"><span class="field-label">Placement Name</span><span class="field-line">${booking.tenant_first_name} ${booking.tenant_last_name}</span></div>
-      <div class="field-row"><span class="field-label">Date of Birth</span><span class="field-line">${formData.date_of_birth||''}</span></div>
+      <div class="field-row"><span class="field-label">Date of Birth</span><span class="field-line">${fmt(formData.date_of_birth)}</span></div>
       <div class="field-row"><span class="field-label">Signature</span><span class="field-line">${form.tenant_signature?'[Signed electronically]':''}</span></div>
       <div class="field-row"><span class="field-label">Date</span><span class="field-line">${fmt(form.signed_at || form.created_at)}</span></div>
       <div style="height:10px"></div>
@@ -394,8 +394,8 @@ function page5_consentForm(booking, form, formData) {
     </div>
 
     <div style="margin-top:24px;display:flex;justify-content:space-between;align-items:flex-end;font-size:8px;color:#666;border-top:1px solid #ddd;padding-top:8px">
-      <div><span style="color:#e74c3c;font-size:12px">ð</span> Unit 13 First Quarter - Longmead Business Park,<br>Blenheim Road, Epsom, KT19 9QN</div>
-      <div style="text-align:center">â info@creativeappeal.co.uk &nbsp; ð 020 4553 2233<br><strong>www.care-realestate.co.uk</strong></div>
+      <div><span style="color:#e74c3c;font-size:12px">&#9679;</span> Unit 13 First Quarter - Longmead Business Park,<br>Blenheim Road, Epsom, KT19 9QN</div>
+      <div style="text-align:right">&bull; info@creativeappeal.co.uk &nbsp; &bull; 020 4553 2233<br><strong>www.care-realestate.co.uk</strong></div>
     </div>
   </div>`;
 }
@@ -423,8 +423,8 @@ function buildCheckOutHTML(booking, form, evidence) {
   const fd = JSON.parse(form.form_data || '{}');
   const cb = v => { if(!v)return''; const l=v.toLowerCase(); if(['excellent','good','clean'].includes(l))return'background:#c6f6d5;color:#276749'; if(['fair','acceptable','needs cleaning'].includes(l))return'background:#fefcbf;color:#975a16'; return'background:#fed7d7;color:#9b2c2c'; };
 
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>CARE Check-Out â ${booking.tenant_first_name} ${booking.tenant_last_name}</title>${baseStyles()}</head><body>
-    <button class="print-btn no-print" onclick="window.print()">â¬ Print / Save as PDF</button>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><title>CARE Check-Out - ${booking.tenant_first_name} ${booking.tenant_last_name}</title>${baseStyles()}</head><body>
+    <button class="print-btn no-print" onclick="window.print()">&#11015; Print / Save as PDF</button>
 
     <div class="page">
       ${CARE_LOGO_HTML}
@@ -471,8 +471,8 @@ function buildCheckOutHTML(booking, form, evidence) {
 // ===== MAIN CHECK-IN BUILDER =====
 function buildCheckInHTML(booking, form, evidence) {
   const fd = JSON.parse(form.form_data || '{}');
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>CARE Check-In Pack â ${booking.tenant_first_name} ${booking.tenant_last_name}</title>${baseStyles()}</head><body>
-    <button class="print-btn no-print" onclick="window.print()">â¬ Print / Save as PDF</button>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><title>CARE Check-In Pack - ${booking.tenant_first_name} ${booking.tenant_last_name}</title>${baseStyles()}</head><body>
+    <button class="print-btn no-print" onclick="window.print()">&#11015; Print / Save as PDF</button>
     ${page1_checkinForm(booking, form, fd)}
     ${page2_welcomePack(booking, form, fd)}
     ${page3_termsAndConditions()}
@@ -484,14 +484,14 @@ function buildCheckInHTML(booking, form, evidence) {
 
 async function generateCheckInPDF(booking, form, evidence, outputPath) {
   const html = buildCheckInHTML(booking, form, evidence);
-  fs.writeFileSync(outputPath.replace('.pdf','.html'), html);
-  fs.writeFileSync(outputPath, html);
+  fs.writeFileSync(outputPath.replace('.pdf','.html'), html, 'utf-8');
+  fs.writeFileSync(outputPath, html, 'utf-8');
   return outputPath;
 }
 async function generateCheckOutPDF(booking, form, evidence, outputPath) {
   const html = buildCheckOutHTML(booking, form, evidence);
-  fs.writeFileSync(outputPath.replace('.pdf','.html'), html);
-  fs.writeFileSync(outputPath, html);
+  fs.writeFileSync(outputPath.replace('.pdf','.html'), html, 'utf-8');
+  fs.writeFileSync(outputPath, html, 'utf-8');
   return outputPath;
 }
 
