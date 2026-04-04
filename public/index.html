@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CARE Real Estate — Check-In System</title>
+  <title>CARE Real Estate â Check-In System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -99,6 +99,7 @@
                 <option value="Mid Sussex District Council">
                 <option value="Horsham District Council">
                 <option value="Isle of Wight Council">
+                <option value="Haringey Council">
               </datalist>
             </div>
             <div class="form-group">
@@ -151,7 +152,7 @@
             </div>
             <div class="form-group">
               <label>Nightly Rate</label>
-              <input type="text" name="nightly_rate" placeholder="e.g. £65.00">
+              <input type="text" name="nightly_rate" placeholder="e.g. Â£65.00">
             </div>
             <div class="form-group">
               <label>Pet Deposit Required</label>
@@ -170,6 +171,7 @@
               <textarea name="condition_notes" rows="3" placeholder="Any notes about the property condition..."></textarea>
             </div>
           </div>
+
           <div class="inventory-section">
             <h3>Inventory</h3>
             <table class="inv-table" id="inventory-table">
@@ -186,6 +188,7 @@
               </tbody>
             </table>
           </div>
+
           <div class="step-actions">
             <button type="button" class="btn btn-outline"><i class="fas fa-arrow-left"></i> Back</button>
             <button type="button" class="btn btn-primary">Next <i class="fas fa-arrow-right"></i></button>
@@ -218,9 +221,13 @@
         <!-- Step 4: Signatures -->
         <div class="form-step" data-step="4">
           <div class="step-title"><span class="step-num">4</span> Review & Sign</div>
+
+          <!-- Sign on behalf toggle -->
           <div class="sign-behalf-toggle">
             <label><input type="checkbox" id="sign-on-behalf"> <strong>Sign on behalf of tenant</strong> (tenant not present or no email)</label>
           </div>
+
+          <!-- Tenant Signature -->
           <div id="tenant-sig-section" class="sig-section">
             <h3>Tenant Signature</h3>
             <div class="sig-method-toggle">
@@ -236,6 +243,8 @@
               <div class="typed-sig-preview" id="tenant-typed-preview"></div>
             </div>
           </div>
+
+          <!-- On-behalf note (hidden by default) -->
           <div id="behalf-note" class="behalf-note" style="display:none;">
             <div class="behalf-info"><i class="fas fa-info-circle"></i> Agent is signing on behalf of the tenant. The PDF will note this.</div>
             <div class="form-group">
@@ -243,6 +252,8 @@
               <input type="text" name="behalf_reason" placeholder="e.g. Tenant not present, no email available">
             </div>
           </div>
+
+          <!-- Agent Signature -->
           <div class="sig-section">
             <h3>CARE Agent Signature</h3>
             <div class="form-group" style="max-width:300px;margin-bottom:12px;">
@@ -262,6 +273,7 @@
               <div class="typed-sig-preview" id="agent-typed-preview"></div>
             </div>
           </div>
+
           <div class="step-actions">
             <button type="button" class="btn btn-outline"><i class="fas fa-arrow-left"></i> Back</button>
             <button type="button" class="btn btn-success"><i class="fas fa-file-pdf"></i> Complete & Generate PDF</button>
