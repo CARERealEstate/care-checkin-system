@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
+  <!-- Sidebar -->
   <nav id="sidebar">
     <div class="brand">
       <div class="brand-sub">Creative Appeal Real Estate</div>
@@ -24,28 +25,35 @@
       <div class="status-dot"></div> System Online
     </div>
   </nav>
+
+  <!-- Main Content -->
   <main id="main">
+    <!-- Dashboard Page -->
     <div id="page-dashboard" class="page active">
       <div class="page-header">
         <h1>Check-In Records</h1>
-        <button class="btn btn-primary" onclick="navigateTo('new-checkin')"><i class="fas fa-plus"></i> New Check-In</button>
+        <button class="btn btn-primary"><i class="fas fa-plus"></i> New Check-In</button>
       </div>
       <div id="records-list" class="records-list">
         <div class="empty-state">
           <i class="fas fa-clipboard-list"></i>
           <p>No check-in records yet</p>
-          <button class="btn btn-primary" onclick="navigateTo('new-checkin')">Create your first check-in</button>
+          <button class="btn btn-primary">Create your first check-in</button>
         </div>
       </div>
     </div>
+
+    <!-- New Check-In Form -->
     <div id="page-new-checkin" class="page">
       <div class="page-header">
         <h1>New Check-In Form</h1>
         <div class="steps-indicator" id="steps-indicator"></div>
       </div>
+
       <form id="checkin-form" onsubmit="return false;">
+        <!-- Step 1: Tenant & Property -->
         <div class="form-step active" data-step="1">
-          <div class="step-title"><span class="step-num">1</span> Tenant &amp; Property Details</div>
+          <div class="step-title"><span class="step-num">1</span> Tenant & Property Details</div>
           <div class="form-grid">
             <div class="form-group">
               <label>First Name <span class="req">*</span></label>
@@ -69,15 +77,37 @@
             </div>
             <div class="form-group">
               <label>Council Name <span class="req">*</span></label>
-              <input type="text" name="council_name" required placeholder="Council name">
+              <input type="text" name="council_name" required placeholder="Council name" list="council-list" autocomplete="off">
+              <datalist id="council-list">
+                <option value="Havant Borough Council">
+                <option value="Gosport Borough Council">
+                <option value="Chichester District Council">
+                <option value="Portsmouth City Council">
+                <option value="Fareham Borough Council">
+                <option value="East Hampshire District Council">
+                <option value="Winchester City Council">
+                <option value="Eastleigh Borough Council">
+                <option value="Southampton City Council">
+                <option value="Arun District Council">
+                <option value="Basingstoke and Deane">
+                <option value="New Forest District Council">
+                <option value="Rushmoor Borough Council">
+                <option value="Test Valley Borough Council">
+                <option value="Brighton and Hove">
+                <option value="Crawley Borough Council">
+                <option value="Worthing Borough Council">
+                <option value="Mid Sussex District Council">
+                <option value="Horsham District Council">
+                <option value="Isle of Wight Council">
+              </datalist>
             </div>
             <div class="form-group">
               <label>Housing Officer</label>
               <input type="text" name="housing_officer" placeholder="Housing officer name">
             </div>
             <div class="form-group">
-              <label>Placement Ref</label>
-              <input type="text" name="reference_number" placeholder="Placement reference">
+              <label>Placement Ref <small style="color:var(--care-green);font-weight:400">(auto-generated)</small></label>
+              <input type="text" name="reference_number" placeholder="Auto-fills from council, address & date">
             </div>
             <div class="form-group">
               <label>Unit Number</label>
@@ -102,11 +132,13 @@
           </div>
           <div class="step-actions">
             <div></div>
-            <button type="button" class="btn btn-primary" onclick="nextStep()">Next <i class="fas fa-arrow-right"></i></button>
+            <button type="button" class="btn btn-primary">Next <i class="fas fa-arrow-right"></i></button>
           </div>
         </div>
+
+        <!-- Step 2: Accommodation & Inventory -->
         <div class="form-step" data-step="2">
-          <div class="step-title"><span class="step-num">2</span> Accommodation &amp; Inventory</div>
+          <div class="step-title"><span class="step-num">2</span> Accommodation & Inventory</div>
           <div class="form-grid">
             <div class="form-group">
               <label>Accommodation Type</label>
@@ -155,10 +187,12 @@
             </table>
           </div>
           <div class="step-actions">
-            <button type="button" class="btn btn-outline" onclick="prevStep()"><i class="fas fa-arrow-left"></i> Back</button>
-            <button type="button" class="btn btn-primary" onclick="nextStep()">Next <i class="fas fa-arrow-right"></i></button>
+            <button type="button" class="btn btn-outline"><i class="fas fa-arrow-left"></i> Back</button>
+            <button type="button" class="btn btn-primary">Next <i class="fas fa-arrow-right"></i></button>
           </div>
         </div>
+
+        <!-- Step 3: Consent -->
         <div class="form-step" data-step="3">
           <div class="step-title"><span class="step-num">3</span> Information Sharing Consent</div>
           <div class="consent-box">
@@ -176,27 +210,29 @@
             </div>
           </div>
           <div class="step-actions">
-            <button type="button" class="btn btn-outline" onclick="prevStep()"><i class="fas fa-arrow-left"></i> Back</button>
-            <button type="button" class="btn btn-primary" onclick="nextStep()">Next <i class="fas fa-arrow-right"></i></button>
+            <button type="button" class="btn btn-outline"><i class="fas fa-arrow-left"></i> Back</button>
+            <button type="button" class="btn btn-primary">Next <i class="fas fa-arrow-right"></i></button>
           </div>
         </div>
+
+        <!-- Step 4: Signatures -->
         <div class="form-step" data-step="4">
-          <div class="step-title"><span class="step-num">4</span> Review &amp; Sign</div>
+          <div class="step-title"><span class="step-num">4</span> Review & Sign</div>
           <div class="sign-behalf-toggle">
-            <label><input type="checkbox" id="sign-on-behalf" onchange="toggleSignOnBehalf()"> <strong>Sign on behalf of tenant</strong> (tenant not present or no email)</label>
+            <label><input type="checkbox" id="sign-on-behalf"> <strong>Sign on behalf of tenant</strong> (tenant not present or no email)</label>
           </div>
           <div id="tenant-sig-section" class="sig-section">
             <h3>Tenant Signature</h3>
             <div class="sig-method-toggle">
-              <button type="button" class="sig-tab active" data-target="tenant" data-method="draw" onclick="switchSigMethod(this)"><i class="fas fa-pen"></i> Draw</button>
-              <button type="button" class="sig-tab" data-target="tenant" data-method="type" onclick="switchSigMethod(this)"><i class="fas fa-keyboard"></i> Type</button>
+              <button type="button" class="sig-tab active" data-target="tenant" data-method="draw"><i class="fas fa-pen"></i> Draw</button>
+              <button type="button" class="sig-tab" data-target="tenant" data-method="type"><i class="fas fa-keyboard"></i> Type</button>
             </div>
             <div class="sig-draw-area" id="tenant-draw">
               <canvas id="tenant-sig-canvas"></canvas>
-              <button type="button" class="btn btn-sm btn-outline" onclick="clearSig('tenant')">Clear</button>
+              <button type="button" class="btn btn-sm btn-outline">Clear</button>
             </div>
             <div class="sig-type-area" id="tenant-type" style="display:none;">
-              <input type="text" id="tenant-typed-sig" placeholder="Type full name..." oninput="updateTypedSig('tenant')">
+              <input type="text" id="tenant-typed-sig" placeholder="Type full name...">
               <div class="typed-sig-preview" id="tenant-typed-preview"></div>
             </div>
           </div>
@@ -214,31 +250,36 @@
               <input type="text" name="agent_name" required placeholder="Your name">
             </div>
             <div class="sig-method-toggle">
-              <button type="button" class="sig-tab active" data-target="agent" data-method="draw" onclick="switchSigMethod(this)"><i class="fas fa-pen"></i> Draw</button>
-              <button type="button" class="sig-tab" data-target="agent" data-method="type" onclick="switchSigMethod(this)"><i class="fas fa-keyboard"></i> Type</button>
+              <button type="button" class="sig-tab active" data-target="agent" data-method="draw"><i class="fas fa-pen"></i> Draw</button>
+              <button type="button" class="sig-tab" data-target="agent" data-method="type"><i class="fas fa-keyboard"></i> Type</button>
             </div>
             <div class="sig-draw-area" id="agent-draw">
               <canvas id="agent-sig-canvas"></canvas>
-              <button type="button" class="btn btn-sm btn-outline" onclick="clearSig('agent')">Clear</button>
+              <button type="button" class="btn btn-sm btn-outline">Clear</button>
             </div>
             <div class="sig-type-area" id="agent-type" style="display:none;">
-              <input type="text" id="agent-typed-sig" placeholder="Type full name..." oninput="updateTypedSig('agent')">
+              <input type="text" id="agent-typed-sig" placeholder="Type full name...">
               <div class="typed-sig-preview" id="agent-typed-preview"></div>
             </div>
           </div>
           <div class="step-actions">
-            <button type="button" class="btn btn-outline" onclick="prevStep()"><i class="fas fa-arrow-left"></i> Back</button>
-            <button type="button" class="btn btn-success" onclick="submitCheckIn()"><i class="fas fa-file-pdf"></i> Complete &amp; Generate PDF</button>
+            <button type="button" class="btn btn-outline"><i class="fas fa-arrow-left"></i> Back</button>
+            <button type="button" class="btn btn-success"><i class="fas fa-file-pdf"></i> Complete & Generate PDF</button>
           </div>
         </div>
       </form>
     </div>
   </main>
+
+  <!-- Toast -->
   <div id="toast" class="toast"></div>
+
+  <!-- Loading overlay -->
   <div id="loading" class="loading-overlay" style="display:none;">
     <div class="spinner"></div>
     <p>Generating PDF...</p>
   </div>
+
   <script src="/js/app.js"></script>
 </body>
 </html>
