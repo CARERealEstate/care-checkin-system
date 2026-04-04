@@ -3,104 +3,242 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CARE Real Estate Ã¢ÂÂ Check-In/Out System</title>
+  <title>CARE Real Estate — Check-In System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.2.0/dist/signature_pad.umd.min.js"></script>
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-  <div id="app">
-    <!-- Sidebar -->
-    <nav id="sidebar">
-      <div class="sidebar-header">
-        <div class="logo">
-          <span class="logo-c">C</span><span class="logo-a">A</span><span class="logo-r">R</span><span class="logo-e">E</span>
-        </div>
-        <div class="logo-tagline">Check-In/Out System</div>
-      </div>
-      <ul class="nav-menu">
-        <li class="nav-item active" data-page="bookings"><i class="fas fa-building"></i> Bookings</li>
-        <li class="nav-item" data-page="crm-sync"><i class="fas fa-sync-alt"></i> CRM Sync</li>
-      </ul>
-      <div class="sidebar-footer">
-        <div class="system-status" id="systemStatus">
-          <i class="fas fa-circle"></i> <span>System Online</span>
-        </div>
-      </div>
-    </nav>
-
-    <!-- Main Content -->
-    <main id="main-content">
-      <!-- Top Bar -->
-      <header class="top-bar">
-        <div class="search-container">
-          <i class="fas fa-search"></i>
-          <input type="text" id="globalSearch" placeholder="Search tenant, property, council...">
-        </div>
-        <div class="top-actions">
-          <button class="btn btn-outline" onclick="syncCRM()"><i class="fas fa-sync-alt"></i> Sync CRM</button>
-        </div>
-      </header>
-
-      <!-- Pages -->
-      <div id="page-bookings" class="page active">
-        <div class="page-header">
-          <div style="display:flex;align-items:center;gap:12px;">
-            <h2>Bookings</h2>
-            <a href="https://care.sangamcrm.com/leads" target="_blank" class="btn btn-outline btn-sm" style="font-size:12px;"><i class="fas fa-external-link-alt"></i> Open CRM</a>
-          </div>
-          <div class="filter-tabs">
-            <button class="filter-tab active" data-status="all">All</button>
-            <button class="filter-tab" data-status="active">Active</button>
-            <button class="filter-tab" data-status="checked_in">Checked In</button>
-            <button class="filter-tab" data-status="checked_out">Checked Out</button>
-            <button class="filter-tab" data-status="completed">Completed</button>
-          </div>
-        </div>
-        <div id="bookings-list" class="card-list"></div>
-        <div id="bookings-pagination" class="pagination"></div>
-      </div>
-
-      <div id="page-booking-detail" class="page">
-        <div id="booking-detail-content"></div>
-      </div>
-
-      <div id="page-checkin-form" class="page">
-        <div id="checkin-form-content"></div>
-      </div>
-
-      <div id="page-checkout-form" class="page">
-        <div id="checkout-form-content"></div>
-      </div>
-
-
-      <div id="page-crm-sync" class="page">
-        <div class="page-header"><h2>CRM Sync</h2></div>
-        <div class="form-card">
-          <p style="margin-bottom:16px;">Sync bookings from Sangam CRM. This runs automatically every 30 minutes, but you can trigger it manually here.</p>
-          <button class="btn btn-primary" onclick="syncCRM()"><i class="fas fa-sync-alt"></i> Sync Now</button>
-          <div id="sync-result" style="margin-top:16px;"></div>
-        </div>
-      </div>
-    </main>
-  </div>
-
-  <!-- Toast notification -->
-  <div id="toast" class="toast"></div>
-
-  <!-- Modal -->
-  <div id="modal-overlay" class="modal-overlay" onclick="closeModal()">
-    <div class="modal-content" onclick="event.stopPropagation()">
-      <div class="modal-header">
-        <h3 id="modal-title"></h3>
-        <button onclick="closeModal()" class="modal-close"><i class="fas fa-times"></i></button>
-      </div>
-      <div id="modal-body"></div>
+  <nav id="sidebar">
+    <div class="brand">
+      <div class="brand-sub">Creative Appeal Real Estate</div>
+      <div class="brand-logo"><span class="g">C</span><span class="r">A</span><span class="g">R</span><span class="g">E</span></div>
     </div>
+    <ul class="nav-list">
+      <li class="nav-item active" data-page="dashboard"><i class="fas fa-home"></i> Dashboard</li>
+      <li class="nav-item" data-page="new-checkin"><i class="fas fa-plus-circle"></i> New Check-In</li>
+    </ul>
+    <div class="nav-footer">
+      <div class="status-dot"></div> System Online
+    </div>
+  </nav>
+  <main id="main">
+    <div id="page-dashboard" class="page active">
+      <div class="page-header">
+        <h1>Check-In Records</h1>
+        <button class="btn btn-primary" onclick="navigateTo('new-checkin')"><i class="fas fa-plus"></i> New Check-In</button>
+      </div>
+      <div id="records-list" class="records-list">
+        <div class="empty-state">
+          <i class="fas fa-clipboard-list"></i>
+          <p>No check-in records yet</p>
+          <button class="btn btn-primary" onclick="navigateTo('new-checkin')">Create your first check-in</button>
+        </div>
+      </div>
+    </div>
+    <div id="page-new-checkin" class="page">
+      <div class="page-header">
+        <h1>New Check-In Form</h1>
+        <div class="steps-indicator" id="steps-indicator"></div>
+      </div>
+      <form id="checkin-form" onsubmit="return false;">
+        <div class="form-step active" data-step="1">
+          <div class="step-title"><span class="step-num">1</span> Tenant &amp; Property Details</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>First Name <span class="req">*</span></label>
+              <input type="text" name="tenant_first_name" required placeholder="Tenant first name">
+            </div>
+            <div class="form-group">
+              <label>Last Name <span class="req">*</span></label>
+              <input type="text" name="tenant_last_name" required placeholder="Tenant last name">
+            </div>
+            <div class="form-group">
+              <label>Phone</label>
+              <input type="tel" name="tenant_phone" placeholder="Phone number">
+            </div>
+            <div class="form-group">
+              <label>Email</label>
+              <input type="email" name="tenant_email" placeholder="Email address (if available)">
+            </div>
+            <div class="form-group full-width">
+              <label>Property Address <span class="req">*</span></label>
+              <input type="text" name="property_address" required placeholder="Full property address">
+            </div>
+            <div class="form-group">
+              <label>Council Name <span class="req">*</span></label>
+              <input type="text" name="council_name" required placeholder="Council name">
+            </div>
+            <div class="form-group">
+              <label>Housing Officer</label>
+              <input type="text" name="housing_officer" placeholder="Housing officer name">
+            </div>
+            <div class="form-group">
+              <label>Placement Ref</label>
+              <input type="text" name="reference_number" placeholder="Placement reference">
+            </div>
+            <div class="form-group">
+              <label>Unit Number</label>
+              <input type="text" name="unit_number" placeholder="Unit / room number">
+            </div>
+            <div class="form-group">
+              <label>NOK Name</label>
+              <input type="text" name="nok_name" placeholder="Next of kin name">
+            </div>
+            <div class="form-group">
+              <label>NOK Phone</label>
+              <input type="tel" name="nok_number" placeholder="Next of kin phone">
+            </div>
+            <div class="form-group">
+              <label>Check-In Date <span class="req">*</span></label>
+              <input type="date" name="checkin_date" required>
+            </div>
+            <div class="form-group">
+              <label>Check-In Time</label>
+              <input type="time" name="checkin_time">
+            </div>
+          </div>
+          <div class="step-actions">
+            <div></div>
+            <button type="button" class="btn btn-primary" onclick="nextStep()">Next <i class="fas fa-arrow-right"></i></button>
+          </div>
+        </div>
+        <div class="form-step" data-step="2">
+          <div class="step-title"><span class="step-num">2</span> Accommodation &amp; Inventory</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Accommodation Type</label>
+              <select name="accommodation_type">
+                <option value="">Select...</option>
+                <option value="single">Single</option>
+                <option value="couple">Couple</option>
+                <option value="family">Family</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Nightly Rate</label>
+              <input type="text" name="nightly_rate" placeholder="e.g. £65.00">
+            </div>
+            <div class="form-group">
+              <label>Pet Deposit Required</label>
+              <input type="text" name="pet_deposit" placeholder="Amount or N/A">
+            </div>
+            <div class="form-group">
+              <label>Placement Start Date</label>
+              <input type="date" name="placement_start">
+            </div>
+            <div class="form-group">
+              <label>Placement End Date</label>
+              <input type="date" name="placement_end">
+            </div>
+            <div class="form-group full-width">
+              <label>Property Notes</label>
+              <textarea name="condition_notes" rows="3" placeholder="Any notes about the property condition..."></textarea>
+            </div>
+          </div>
+          <div class="inventory-section">
+            <h3>Inventory</h3>
+            <table class="inv-table" id="inventory-table">
+              <thead>
+                <tr><th>Item</th><th style="width:60px;text-align:center">Present</th><th>Comments</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Bed(s)</td><td class="inv-check-cell"><input type="checkbox" data-item="Bed(s)" checked></td><td><input type="text" class="inv-comment" data-item="Bed(s)" placeholder="Comments..."></td></tr>
+                <tr><td>Cupboard(s)</td><td class="inv-check-cell"><input type="checkbox" data-item="Cupboard(s)" checked></td><td><input type="text" class="inv-comment" data-item="Cupboard(s)" placeholder="Comments..."></td></tr>
+                <tr><td>Sofa</td><td class="inv-check-cell"><input type="checkbox" data-item="Sofa" checked></td><td><input type="text" class="inv-comment" data-item="Sofa" placeholder="Comments..."></td></tr>
+                <tr><td>Table/chairs</td><td class="inv-check-cell"><input type="checkbox" data-item="Table/chairs" checked></td><td><input type="text" class="inv-comment" data-item="Table/chairs" placeholder="Comments..."></td></tr>
+                <tr><td>Washing machine</td><td class="inv-check-cell"><input type="checkbox" data-item="W. machine" checked></td><td><input type="text" class="inv-comment" data-item="W. machine" placeholder="Comments..."></td></tr>
+                <tr><td>Fridge/Freezer</td><td class="inv-check-cell"><input type="checkbox" data-item="Fridge/ Freezer" checked></td><td><input type="text" class="inv-comment" data-item="Fridge/ Freezer" placeholder="Comments..."></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="step-actions">
+            <button type="button" class="btn btn-outline" onclick="prevStep()"><i class="fas fa-arrow-left"></i> Back</button>
+            <button type="button" class="btn btn-primary" onclick="nextStep()">Next <i class="fas fa-arrow-right"></i></button>
+          </div>
+        </div>
+        <div class="form-step" data-step="3">
+          <div class="step-title"><span class="step-num">3</span> Information Sharing Consent</div>
+          <div class="consent-box">
+            <p>The tenant gives permission for <strong>CARE Real Estate</strong> to share personal information with other service providers in connection with their care, including accessing and sharing medical, mental health and police records.</p>
+            <div class="form-group" style="margin-top:16px;">
+              <label>Date of Birth</label>
+              <input type="date" name="date_of_birth">
+            </div>
+            <div class="form-group">
+              <label>Excluded Agencies (if any)</label>
+              <textarea name="excluded_agencies" rows="2" placeholder="List any agencies the tenant does NOT want information shared with..."></textarea>
+            </div>
+            <div class="consent-check">
+              <label><input type="checkbox" name="consent_agreed" value="1"> <strong>Tenant agrees</strong> to information being shared and gathered between services</label>
+            </div>
+          </div>
+          <div class="step-actions">
+            <button type="button" class="btn btn-outline" onclick="prevStep()"><i class="fas fa-arrow-left"></i> Back</button>
+            <button type="button" class="btn btn-primary" onclick="nextStep()">Next <i class="fas fa-arrow-right"></i></button>
+          </div>
+        </div>
+        <div class="form-step" data-step="4">
+          <div class="step-title"><span class="step-num">4</span> Review &amp; Sign</div>
+          <div class="sign-behalf-toggle">
+            <label><input type="checkbox" id="sign-on-behalf" onchange="toggleSignOnBehalf()"> <strong>Sign on behalf of tenant</strong> (tenant not present or no email)</label>
+          </div>
+          <div id="tenant-sig-section" class="sig-section">
+            <h3>Tenant Signature</h3>
+            <div class="sig-method-toggle">
+              <button type="button" class="sig-tab active" data-target="tenant" data-method="draw" onclick="switchSigMethod(this)"><i class="fas fa-pen"></i> Draw</button>
+              <button type="button" class="sig-tab" data-target="tenant" data-method="type" onclick="switchSigMethod(this)"><i class="fas fa-keyboard"></i> Type</button>
+            </div>
+            <div class="sig-draw-area" id="tenant-draw">
+              <canvas id="tenant-sig-canvas"></canvas>
+              <button type="button" class="btn btn-sm btn-outline" onclick="clearSig('tenant')">Clear</button>
+            </div>
+            <div class="sig-type-area" id="tenant-type" style="display:none;">
+              <input type="text" id="tenant-typed-sig" placeholder="Type full name..." oninput="updateTypedSig('tenant')">
+              <div class="typed-sig-preview" id="tenant-typed-preview"></div>
+            </div>
+          </div>
+          <div id="behalf-note" class="behalf-note" style="display:none;">
+            <div class="behalf-info"><i class="fas fa-info-circle"></i> Agent is signing on behalf of the tenant. The PDF will note this.</div>
+            <div class="form-group">
+              <label>Reason for signing on behalf</label>
+              <input type="text" name="behalf_reason" placeholder="e.g. Tenant not present, no email available">
+            </div>
+          </div>
+          <div class="sig-section">
+            <h3>CARE Agent Signature</h3>
+            <div class="form-group" style="max-width:300px;margin-bottom:12px;">
+              <label>Agent Name <span class="req">*</span></label>
+              <input type="text" name="agent_name" required placeholder="Your name">
+            </div>
+            <div class="sig-method-toggle">
+              <button type="button" class="sig-tab active" data-target="agent" data-method="draw" onclick="switchSigMethod(this)"><i class="fas fa-pen"></i> Draw</button>
+              <button type="button" class="sig-tab" data-target="agent" data-method="type" onclick="switchSigMethod(this)"><i class="fas fa-keyboard"></i> Type</button>
+            </div>
+            <div class="sig-draw-area" id="agent-draw">
+              <canvas id="agent-sig-canvas"></canvas>
+              <button type="button" class="btn btn-sm btn-outline" onclick="clearSig('agent')">Clear</button>
+            </div>
+            <div class="sig-type-area" id="agent-type" style="display:none;">
+              <input type="text" id="agent-typed-sig" placeholder="Type full name..." oninput="updateTypedSig('agent')">
+              <div class="typed-sig-preview" id="agent-typed-preview"></div>
+            </div>
+          </div>
+          <div class="step-actions">
+            <button type="button" class="btn btn-outline" onclick="prevStep()"><i class="fas fa-arrow-left"></i> Back</button>
+            <button type="button" class="btn btn-success" onclick="submitCheckIn()"><i class="fas fa-file-pdf"></i> Complete &amp; Generate PDF</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </main>
+  <div id="toast" class="toast"></div>
+  <div id="loading" class="loading-overlay" style="display:none;">
+    <div class="spinner"></div>
+    <p>Generating PDF...</p>
   </div>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.2.0/signature_pad.umd.min.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>
