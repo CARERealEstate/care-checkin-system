@@ -57,7 +57,7 @@ router.get('/download/:formId', (req, res) => {
     const content = fs.readFileSync(form.pdf_path, 'utf-8');
 
     if (content.startsWith('<!DOCTYPE') || content.startsWith('<html')) {
-      res.setHeader('Content-Type', 'text/html');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
       return res.send(content);
     }
 

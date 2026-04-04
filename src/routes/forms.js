@@ -57,7 +57,9 @@ router.put('/:id', (req, res) => {
     const { form_data, tenant_signature, agent_signature, agent_name, signing_method, status } = req.body;
 
     if (form_data !== undefined) {
-      db.prepare(`UPDATE forms SET form_data = @val WHERE id = @id`).run({ val: JSON.stringify(form_data), id });
+      // form_data may arrive as string or object; store as string
+      const fdStr = typeof form_data === 'string' ? form_data : JSON.stringify(form_data);
+      db.prepare(`UPDATE forms SET form_data = @val WHERE id = @id`).run({ val: fdStr, id });
     }
     if (tenant_signature !== undefined) {
       db.prepare(`UPDATE forms SET tenant_signature = @val WHERE id = @id`).run({ val: tenant_signature, id });
