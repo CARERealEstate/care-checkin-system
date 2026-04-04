@@ -78,23 +78,33 @@ function validateStep1() {
 
 // ===== Signature Pads =====
 function initSignaturePads() {
+  if (typeof SignaturePad === 'undefined') {
+    console.warn('SignaturePad not loaded yet, retrying in 500ms...');
+    setTimeout(initSignaturePads, 500);
+    return;
+  }
   const tCanvas = document.getElementById('tenant-sig-canvas');
   const aCanvas = document.getElementById('agent-sig-canvas');
   if (tCanvas && !tenantSigPad) {
     resizeCanvas(tCanvas);
-    tenantSigPad = new SignaturePad(tCanvas, { backgroundColor: 'rgba(250,250,250,1)', penColor: '#222' });
+    tenantSigPad = new SignaturePad(tCanvas, { backgroundColor: 'rgba(250,250,250,1)', penColor: '#222', minWidth: 1, maxWidth: 3 });
   }
   if (aCanvas && !agentSigPad) {
     resizeCanvas(aCanvas);
-    agentSigPad = new SignaturePad(aCanvas, { backgroundColor: 'rgba(250,250,250,1)', penColor: '#222' });
+    agentSigPad = new SignaturePad(aCanvas, { backgroundColor: 'rgba(250,250,250,1)', penColor: '#222', minWidth: 1, maxWidth: 3 });
   }
 }
 
 function resizeCanvas(canvas) {
   const ratio = Math.max(window.devicePixelRatio || 1, 1);
-  const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * ratio;
-  canvas.height = rect.height * ratio;
+  const parent = canvas.parentElement;
+  // Use parent width for sizing, ensure canvas is visible
+  const w = parent ? parent.clientWidth : canvas.clientWidth || 400;
+  const h = 150;
+  canvas.width = w * ratio;
+  canvas.height = h * ratio;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
   const ctx = canvas.getContext('2d');
   ctx.scale(ratio, ratio);
 }
@@ -281,12 +291,10 @@ async function submitCheckIn() {
     if (!pdfRes.ok) throw new Error('Failed to generate PDF');
 
     document.getElementById('loading').style.display = 'none';
-    showToast('Check-in complete! Downloading PDF...', 'success');
+    showToast('Check-in complete! Opening report...', 'success');
 
-    const link = document.createElement('a');
-    link.href = `/api/pdf/download/${formId}`;
-    link.download = `checkin-${values.tenant_first_name}-${values.tenant_last_name}.pdf`;
-    link.click();
+    // Open the HTML report in a new tab (user can print to PDF from there)
+    window.open(`/api/pdf/download/${formId}`, '_blank');
 
     setTimeout(() => navigateTo('dashboard'), 1500);
 
@@ -319,27 +327,48 @@ async function loadRecords() {
       const status = b.status || 'active';
       const statusClass = status === 'checked_in' ? 'signed' : status === 'completed' ? 'completed' : 'draft';
       const statusText = status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-      const hasForm = b.forms && b.forms.some(f => f.type === 'check_in' && f.status !== 'draft');
 
-      return `<div class="record-card">
+      return `<div class="record-card" data-view-booking="${b.id}" style="cursor:pointer;">
         <div class="record-info">
           <h3>${b.tenant_first_name} ${b.tenant_last_name}</h3>
           <div class="record-meta">
             <span><i class="fas fa-building"></i> ${b.property_address || 'N/A'}</span>
             <span><i class="fas fa-university"></i> ${b.council_name || 'N/A'}</span>
+            <span><i class="fas fa-hashtag"></i> ${b.reference_number || 'No Ref'}</span>
             <span><i class="fas fa-calendar"></i> ${formatDate(b.created_at)}</span>
           </div>
         </div>
         <div class="record-actions">
           <span class="status-badge status-${statusClass}">${statusText}</span>
-          ${hasForm ? `<button class="btn btn-sm btn-outline" data-download-booking="${b.id}"><i class="fas fa-download"></i> PDF</button>` : ''}
+          <button class="btn btn-sm btn-outline" data-download-booking="${b.id}" title="View PDF"><i class="fas fa-file-pdf"></i></button>
+          <button class="btn btn-sm btn-outline" data-view-detail="${b.id}" title="View Details"><i class="fas fa-eye"></i></button>
         </div>
       </div>`;
     }).join('');
 
+    // Bind card clicks (view detail)
+    container.querySelectorAll('[data-view-booking]').forEach(card => {
+      card.addEventListener('click', (e) => {
+        // Don't trigger if clicking a button inside the card
+        if (e.target.closest('button')) return;
+        viewRecord(parseInt(card.dataset.viewBooking));
+      });
+    });
+
     // Bind download buttons
     container.querySelectorAll('[data-download-booking]').forEach(btn => {
-      btn.addEventListener('click', () => downloadPDF(parseInt(btn.dataset.downloadBooking)));
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        downloadPDF(parseInt(btn.dataset.downloadBooking));
+      });
+    });
+
+    // Bind view detail buttons
+    container.querySelectorAll('[data-view-detail]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        viewRecord(parseInt(btn.dataset.viewDetail));
+      });
     });
 
   } catch (err) {
@@ -351,17 +380,174 @@ async function downloadPDF(bookingId) {
   try {
     const res = await fetch(`/api/bookings/${bookingId}`);
     const data = await res.json();
-    const form = (data.booking?.forms || data.forms || []).find(f => f.type === 'check_in' && f.pdf_path);
+    const forms = data.forms || [];
+    const form = forms.find(f => f.type === 'check_in' && f.pdf_path);
     if (form) {
-      const link = document.createElement('a');
-      link.href = `/api/pdf/download/${form.id}`;
-      link.download = 'checkin.pdf';
-      link.click();
+      window.open(`/api/pdf/download/${form.id}`, '_blank');
     } else {
       showToast('No PDF available for this record', 'error');
     }
   } catch (err) {
     showToast('Error downloading PDF', 'error');
+  }
+}
+
+// ===== View Record Detail =====
+let currentViewBookingId = null;
+
+async function viewRecord(bookingId) {
+  try {
+    const res = await fetch(`/api/bookings/${bookingId}`);
+    if (!res.ok) throw new Error('Failed to load record');
+    const data = await res.json();
+    const b = data.booking;
+    const forms = data.forms || [];
+    const checkInForm = forms.find(f => f.type === 'check_in');
+    let formData = {};
+    if (checkInForm && checkInForm.form_data) {
+      try { formData = JSON.parse(checkInForm.form_data); } catch(e) {}
+    }
+
+    currentViewBookingId = bookingId;
+
+    // Populate detail fields
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val || '—'; };
+
+    setVal('detail-first-name', b.tenant_first_name);
+    setVal('detail-last-name', b.tenant_last_name);
+    setVal('detail-phone', b.tenant_phone);
+    setVal('detail-email', b.tenant_email);
+    setVal('detail-address', b.property_address);
+    setVal('detail-council', b.council_name);
+    setVal('detail-ref', b.reference_number);
+    setVal('detail-housing-officer', formData.housing_officer);
+    setVal('detail-unit', formData.unit_number);
+    setVal('detail-nok-name', formData.nok_name);
+    setVal('detail-nok-phone', formData.nok_number);
+    setVal('detail-checkin-date', formData.checkin_date || b.placement_start);
+    setVal('detail-checkin-time', formData.checkin_time);
+    setVal('detail-accommodation', formData.accommodation_type);
+    setVal('detail-rate', b.nightly_rate || formData.nightly_rate);
+    setVal('detail-pet-deposit', formData.pet_deposit);
+    setVal('detail-placement-start', b.placement_start);
+    setVal('detail-placement-end', b.placement_end);
+    setVal('detail-notes', formData.condition_notes);
+
+    // Status
+    const status = b.status || 'active';
+    const statusText = status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    setText('detail-status', statusText);
+
+    // Consent info
+    setText('detail-dob', formData.date_of_birth || '—');
+    setText('detail-consent', formData.consent_agreed ? 'Yes' : 'No');
+    setText('detail-excluded', formData.excluded_agencies || 'None');
+
+    // Signatures
+    const tenantSigImg = document.getElementById('detail-tenant-sig');
+    const agentSigImg = document.getElementById('detail-agent-sig');
+    if (tenantSigImg) {
+      if (checkInForm?.tenant_signature) {
+        tenantSigImg.src = checkInForm.tenant_signature;
+        tenantSigImg.style.display = '';
+      } else {
+        tenantSigImg.style.display = 'none';
+      }
+    }
+    if (agentSigImg) {
+      if (checkInForm?.agent_signature) {
+        agentSigImg.src = checkInForm.agent_signature;
+        agentSigImg.style.display = '';
+      } else {
+        agentSigImg.style.display = 'none';
+      }
+    }
+    setText('detail-agent-name', checkInForm?.agent_name);
+
+    // PDF button
+    const pdfBtn = document.getElementById('detail-pdf-btn');
+    if (pdfBtn) {
+      if (checkInForm?.pdf_path) {
+        pdfBtn.style.display = '';
+        pdfBtn.onclick = () => window.open(`/api/pdf/download/${checkInForm.id}`, '_blank');
+      } else {
+        pdfBtn.style.display = 'none';
+      }
+    }
+
+    // Regenerate PDF button
+    const regenBtn = document.getElementById('detail-regen-btn');
+    if (regenBtn) {
+      if (checkInForm) {
+        regenBtn.style.display = '';
+        regenBtn.onclick = async () => {
+          regenBtn.disabled = true;
+          regenBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+          try {
+            const r = await fetch(`/api/pdf/generate/${checkInForm.id}`, { method: 'POST' });
+            if (!r.ok) throw new Error('Failed');
+            showToast('PDF regenerated!', 'success');
+            window.open(`/api/pdf/download/${checkInForm.id}`, '_blank');
+          } catch(e) {
+            showToast('Error regenerating PDF', 'error');
+          }
+          regenBtn.disabled = false;
+          regenBtn.innerHTML = '<i class="fas fa-redo"></i> Regenerate PDF';
+        };
+      } else {
+        regenBtn.style.display = 'none';
+      }
+    }
+
+    // Inventory table
+    const invBody = document.getElementById('detail-inventory-body');
+    if (invBody && formData.inventory) {
+      invBody.innerHTML = formData.inventory.map(item => `<tr>
+        <td>${item.name}</td>
+        <td style="text-align:center"><i class="fas fa-${item.in ? 'check text-green' : 'times text-red'}"></i></td>
+        <td>${item.comments || '—'}</td>
+      </tr>`).join('');
+    } else if (invBody) {
+      invBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#999;">No inventory data</td></tr>';
+    }
+
+    // Navigate to detail page
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-record-detail')?.classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  } catch (err) {
+    console.error('View record error:', err);
+    showToast('Error loading record details', 'error');
+  }
+}
+
+async function saveRecordEdits() {
+  if (!currentViewBookingId) return;
+  const getVal = (id) => document.getElementById(id)?.value || '';
+
+  try {
+    const res = await fetch(`/api/bookings/${currentViewBookingId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant_first_name: getVal('detail-first-name'),
+        tenant_last_name: getVal('detail-last-name'),
+        tenant_email: getVal('detail-email'),
+        tenant_phone: getVal('detail-phone'),
+        property_address: getVal('detail-address'),
+        council_name: getVal('detail-council'),
+        reference_number: getVal('detail-ref'),
+        placement_start: getVal('detail-placement-start'),
+        placement_end: getVal('detail-placement-end')
+      })
+    });
+    if (!res.ok) throw new Error('Failed to save');
+    showToast('Record updated!', 'success');
+  } catch (err) {
+    showToast('Error saving changes: ' + err.message, 'error');
   }
 }
 
@@ -483,7 +669,7 @@ function abbreviateProperty(address) {
     return prefix + num + initials;
   }
 
-  // No street number - just take initials of remaining words (e.g. "Delme Court")
+  // No street number — just take initials of remaining words (e.g. "Delme Court")
   const words = rest.replace(/,.*$/, '').trim().split(/\s+/).filter(w => w.length > 0);
   const initials = words.map(w => w[0]?.toUpperCase() || '').join('');
   return prefix + initials;
