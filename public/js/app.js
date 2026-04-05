@@ -218,7 +218,23 @@ async function submitCheckIn() {
 
   let tenantSig = null;
   if (signOnBehalf) {
-    tenantSig = agentSig;
+    // Generate a signature image with tenant's name in block capitals
+    const tenantName = (values.tenant_first_name + ' ' + values.tenant_last_name).toUpperCase();
+    const canvas = document.createElement('canvas');
+    canvas.width = 400;
+    canvas.height = 100;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fafafa';
+    ctx.fillRect(0, 0, 400, 100);
+    ctx.font = 'bold 28px "Inter", "Arial", sans-serif';
+    ctx.fillStyle = '#222';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(tenantName, 200, 40);
+    ctx.font = '12px "Inter", "Arial", sans-serif';
+    ctx.fillStyle = '#888';
+    ctx.fillText('(Signed on behalf by agent)', 200, 70);
+    tenantSig = canvas.toDataURL();
   } else {
     tenantSig = getSignatureDataURL('tenant');
     if (!tenantSig) {
@@ -302,6 +318,24 @@ async function submitCheckIn() {
 
     // Open the HTML report in a new tab (user can print to PDF from there)
     window.open(`/api/pdf/download/${formId}`, '_blank');
+
+    // Offer Adobe Sign if tenant has email
+    if (values.tenant_email && values.tenant_email.includes('@')) {
+      setTimeout(() => {
+        if (confirm(`Send documents to ${values.tenant_email} for digital signing via Adobe Sign?`)) {
+          fetch(`/api/adobe-sign/send/${formId}`, { method: 'POST' })
+            .then(r => r.json())
+            .then(result => {
+              if (result.success) {
+                showToast(`Adobe Sign sent to ${values.tenant_email}!`, 'success');
+              } else {
+                showToast('Adobe Sign: ' + (result.error || 'Not configured yet'), 'error');
+              }
+            })
+            .catch(e => showToast('Adobe Sign not available: ' + e.message, 'error'));
+        }
+      }, 2000);
+    }
 
     setTimeout(() => navigateTo('dashboard'), 1500);
 
@@ -520,6 +554,42 @@ async function viewRecord(bookingId) {
         };
       } else {
         regenBtn.style.display = 'none';
+      }
+    }
+
+    // Adobe Sign button - show if tenant has email and form exists
+    const adobeSignBtn = document.getElementById('detail-adobe-sign-btn');
+    if (adobeSignBtn) {
+      if (checkInForm && b.tenant_email && b.tenant_email.includes('@')) {
+        adobeSignBtn.style.display = '';
+        const adobeSentInfo = formData.adobe_sign_sent_at ? ` (Sent ${new Date(formData.adobe_sign_sent_at).toLocaleDateString('en-GB')})` : '';
+        if (formData.adobe_sign_agreement_id) {
+          adobeSignBtn.innerHTML = '<i class="fas fa-check"></i> Sent via Adobe Sign' + adobeSentInfo;
+          adobeSignBtn.style.background = '#27ae60';
+          adobeSignBtn.style.borderColor = '#27ae60';
+        }
+        adobeSignBtn.onclick = async () => {
+          if (!confirm(`Send check-in documents to ${b.tenant_email} for signing via Adobe Sign?`)) return;
+          adobeSignBtn.disabled = true;
+          adobeSignBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+          try {
+            // Regenerate PDF first to ensure latest content
+            await fetch(`/api/pdf/generate/${checkInForm.id}`, { method: 'POST' });
+            const r = await fetch(`/api/adobe-sign/send/${checkInForm.id}`, { method: 'POST' });
+            const result = await r.json();
+            if (!r.ok) throw new Error(result.error || 'Failed to send');
+            showToast(`Document sent to ${b.tenant_email} via Adobe Sign!`, 'success');
+            adobeSignBtn.innerHTML = '<i class="fas fa-check"></i> Sent via Adobe Sign';
+            adobeSignBtn.style.background = '#27ae60';
+            adobeSignBtn.style.borderColor = '#27ae60';
+          } catch(e) {
+            showToast('Adobe Sign error: ' + e.message, 'error');
+            adobeSignBtn.innerHTML = '<i class="fas fa-pen-fancy"></i> Send via Adobe Sign';
+          }
+          adobeSignBtn.disabled = false;
+        };
+      } else {
+        adobeSignBtn.style.display = 'none';
       }
     }
 
