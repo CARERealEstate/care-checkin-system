@@ -420,41 +420,61 @@ async function downloadPDF(bookingId) {
   }
 }
 
-// Core PDF generation using html2pdf.js with iframe for full HTML rendering
+// Core PDF generation - parse HTML and use html2pdf.js with proper style extraction
 async function generateAndDownloadPdf(formId) {
   showToast('Generating PDF...', 'success');
   try {
-    // Regenerate HTML on server first
+    // Regenerate HTML on server
     await fetch(`/api/pdf/generate/${formId}`, { method: 'POST' });
-    // Fetch the HTML content
+    // Fetch the full HTML document
     const htmlRes = await fetch(`/api/pdf/download/${formId}`);
     if (!htmlRes.ok) throw new Error('Failed to fetch document');
     const htmlContent = await htmlRes.text();
 
-    // Use a hidden iframe so the full HTML document (including <style> tags) renders properly
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.left = '-9999px';
-    iframe.style.top = '0';
-    iframe.style.width = '210mm';
-    iframe.style.height = '297mm';
-    iframe.style.border = 'none';
-    document.body.appendChild(iframe);
+    // Parse the HTML to extract styles and body separately
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlContent, 'text/html');
 
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-    iframeDoc.open();
-    iframeDoc.write(htmlContent);
-    iframeDoc.close();
+    // Create a container div for pdf rendering
+    const container = document.createElement('div');
+    container.id = 'pdf-render-container';
+    container.style.position = 'fixed';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '794px';
+    container.style.background = 'white';
+    container.style.zIndex = '-1';
 
-    // Wait for content to fully render (images, fonts, etc)
-    await new Promise(resolve => {
-      iframe.onload = resolve;
-      setTimeout(resolve, 2000); // fallback timeout
+    // Copy all style tags from the parsed document
+    const styles = doc.querySelectorAll('style');
+    styles.forEach(function(s) {
+      const newStyle = document.createElement('style');
+      newStyle.textContent = s.textContent;
+      container.appendChild(newStyle);
     });
 
-    // Use html2pdf on the iframe body content
+    // Copy all link[rel=stylesheet] tags
+    const links = doc.querySelectorAll('link[rel="stylesheet"]');
+    links.forEach(function(l) {
+      const newLink = document.createElement('link');
+      newLink.rel = 'stylesheet';
+      newLink.href = l.href;
+      container.appendChild(newLink);
+    });
+
+    // Copy body content
+    const bodyContent = doc.body ? doc.body.innerHTML : htmlContent;
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = bodyContent;
+    container.appendChild(wrapper);
+
+    document.body.appendChild(container);
+
+    // Wait for styles and images to load
+    await new Promise(function(resolve) { setTimeout(resolve, 1500); });
+
     const opt = {
-      margin: [5, 5, 5, 5],
+      margin: [2, 2, 2, 2],
       filename: 'CARE-CheckIn-' + formId + '.pdf',
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: {
@@ -462,14 +482,15 @@ async function generateAndDownloadPdf(formId) {
         useCORS: true,
         letterRendering: true,
         logging: false,
-        windowWidth: iframe.contentWindow.document.body.scrollWidth || 794
+        width: 794,
+        windowWidth: 794
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     };
 
-    await html2pdf().set(opt).from(iframeDoc.body).save();
-    document.body.removeChild(iframe);
+    await html2pdf().set(opt).from(container).save();
+    document.body.removeChild(container);
     showToast('PDF downloaded!', 'success');
   } catch (err) {
     console.error('PDF generation error:', err);
