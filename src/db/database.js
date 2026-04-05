@@ -179,6 +179,8 @@ async function initialize() {
       status TEXT DEFAULT 'draft',
       signing_method TEXT DEFAULT 'in_person',
       adobe_agreement_id TEXT,
+        adobe_sign_status TEXT,
+        adobe_sign_email TEXT,
       tenant_signature TEXT,
       agent_signature TEXT,
       agent_name TEXT DEFAULT '',
