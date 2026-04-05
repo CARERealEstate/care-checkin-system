@@ -18,6 +18,28 @@ function img64(filePath) {
   try { if (!filePath || !fs.existsSync(filePath)) return null; const d = fs.readFileSync(filePath); const m = path.extname(filePath).toLowerCase()==='.png'?'image/png':'image/jpeg'; return `data:${m};base64,${d.toString('base64')}`; } catch { return null; }
 }
 
+// Helper: render signature based on signing method
+function renderSig(form, fd, type) {
+  const sm = (fd && fd.signing_method) || 'in_person';
+  if (type === 'tenant') {
+    if (sm === 'pending_digital') return '<span style="color:#e74c3c;font-style:italic;font-size:10px;">Pending - to be sent via Adobe Sign</span>';
+    if (sm === 'on_behalf') return '<span style="font-style:italic;font-size:10px;">Signed on behalf by CARE agent</span>';
+    if (form.tenant_signature) return '<img src="' + form.tenant_signature + '">';
+    return '';
+  }
+  return form.agent_signature ? '<img src="' + form.agent_signature + '">' : '';
+}
+function renderSigText(form, fd, type) {
+  const sm = (fd && fd.signing_method) || 'in_person';
+  if (type === 'tenant') {
+    if (sm === 'pending_digital') return 'Pending - to be sent via Adobe Sign';
+    if (sm === 'on_behalf') return 'Signed on behalf by CARE agent';
+    if (form.tenant_signature) return '[Signed in person]';
+    return '';
+  }
+  return form.agent_signature ? '[Signed]' : '';
+}
+
 const LOGO_SVG = `<svg viewBox="0 0 280 90" xmlns="http://www.w3.org/2000/svg" style="height:65px;">
   <text x="10" y="12" font-family="Arial Black,Arial" font-weight="900" font-size="11" fill="#4a4a4a">Creative Appeal Real Estate</text>
   <text x="10" y="62" font-family="Arial Black,Arial" font-weight="900" font-size="52">
@@ -194,11 +216,11 @@ function page1_checkinForm(booking, form, formData) {
     <div class="sig-row">
       <div class="sig-box">
         <div class="sig-box-label">Placement Signature</div>
-        <div class="sig-box-area">${form.tenant_signature?`<img src="${form.tenant_signature}">`:''}</div>
+        <div class="sig-box-area">${renderSig(form, formData, "tenant")}</div>
       </div>
       <div class="sig-box">
         <div class="sig-box-label">CARE Agent Signature</div>
-        <div class="sig-box-area">${form.agent_signature?`<img src="${form.agent_signature}">`:''}</div>
+        <div class="sig-box-area">${renderSig(form, formData, "agent")}</div>
       </div>
     </div>
 
@@ -306,7 +328,7 @@ function page3_termsAndConditions() {
 }
 
 // ===== PAGE 4: MORE T&Cs + DECLARATION =====
-function page4_declarationAndSignatures(booking, form) {
+function page4_declarationAndSignatures(booking, form, formData) {
   return `<div class="page">
     ${CARE_LOGO_HTML}
 
@@ -327,12 +349,12 @@ function page4_declarationAndSignatures(booking, form) {
 
     <div class="sig-row" style="margin-top:20px">
       <div class="sig-box">
-        <div class="sig-box-area" style="height:75px">${form.tenant_signature?`<img src="${form.tenant_signature}">`:''}</div>
+        <div class="sig-box-area" style="height:75px">${renderSig(form, formData, "tenant")}</div>
         <div style="font-size:9px;font-weight:600;margin-top:6px">SIGNED PLACEMENT</div>
       </div>
       <div style="flex:0.3"></div>
       <div class="sig-box">
-        <div class="sig-box-area" style="height:75px">${form.agent_signature?`<img src="${form.agent_signature}">`:''}</div>
+        <div class="sig-box-area" style="height:75px">${renderSig(form, formData, "agent")}</div>
         <div style="font-size:9px;font-weight:600;margin-top:6px">SIGNED - CARE AGENT</div>
       </div>
     </div>
@@ -387,10 +409,10 @@ function page5_consentForm(booking, form, formData) {
     <div style="margin-top:14px">
       <div class="field-row"><span class="field-label">Placement Name</span><span class="field-line">${booking.tenant_first_name} ${booking.tenant_last_name}</span></div>
       <div class="field-row"><span class="field-label">Date of Birth</span><span class="field-line">${fmt(formData.date_of_birth)}</span></div>
-      <div class="field-row"><span class="field-label">Signature</span><span class="field-line">${form.tenant_signature?'[Signed electronically]':''}</span></div>
+      <div class="field-row"><span class="field-label">Signature</span><span class="field-line">${renderSigText(form, formData, "tenant")}</span></div>
       <div class="field-row"><span class="field-label">Date</span><span class="field-line">${fmt(form.signed_at || form.created_at)}</span></div>
       <div style="height:10px"></div>
-      <div class="field-row"><span class="field-label">Signature of CARE Agent</span><span class="field-line">${form.agent_signature?'[Signed electronically]':''}</span></div>
+      <div class="field-row"><span class="field-label">Signature of CARE Agent</span><span class="field-line">${renderSigText(form, formData, "agent")}</span></div>
     </div>
 
     <div style="margin-top:24px;display:flex;justify-content:space-between;align-items:flex-end;font-size:8px;color:#666;border-top:1px solid #ddd;padding-top:8px">
@@ -458,8 +480,8 @@ function buildCheckOutHTML(booking, form, evidence) {
       ${fd.additional_notes?`<div class="section-heading">Additional Notes</div><p class="body-text">${fd.additional_notes}</p>`:''}
 
       <div class="sig-row" style="margin-top:16px">
-        <div class="sig-box"><div class="sig-box-label">Tenant Acknowledgement</div><div class="sig-box-area">${form.tenant_signature?`<img src="${form.tenant_signature}">`:''}</div><div style="font-size:8px;color:#666;margin-top:4px">${booking.tenant_first_name} ${booking.tenant_last_name}</div></div>
-        <div class="sig-box"><div class="sig-box-label">CARE Agent</div><div class="sig-box-area">${form.agent_signature?`<img src="${form.agent_signature}">`:''}</div><div style="font-size:8px;color:#666;margin-top:4px">${form.agent_name||'CARE Real Estate'}</div></div>
+        <div class="sig-box"><div class="sig-box-label">Tenant Acknowledgement</div><div class="sig-box-area">${renderSig(form, formData, "tenant")}</div><div style="font-size:8px;color:#666;margin-top:4px">${booking.tenant_first_name} ${booking.tenant_last_name}</div></div>
+        <div class="sig-box"><div class="sig-box-label">CARE Agent</div><div class="sig-box-area">${renderSig(form, formData, "agent")}</div><div style="font-size:8px;color:#666;margin-top:4px">${form.agent_name||'CARE Real Estate'}</div></div>
       </div>
       ${FOOTER_HTML}
     </div>
@@ -476,7 +498,7 @@ function buildCheckInHTML(booking, form, evidence) {
     ${page1_checkinForm(booking, form, fd)}
     ${page2_welcomePack(booking, form, fd)}
     ${page3_termsAndConditions()}
-    ${page4_declarationAndSignatures(booking, form)}
+    ${page4_declarationAndSignatures(booking, form, fd)}
     ${page5_consentForm(booking, form, fd)}
     ${pageEvidence(booking, form, evidence)}
   </body></html>`;
