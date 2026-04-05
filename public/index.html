@@ -51,17 +51,17 @@
       </div>
 
       <form id="checkin-form" onsubmit="return false;">
-        <!-- Step 1: Tenant & Property -->
+        <!-- Step 1: Placement & Property -->
         <div class="form-step active" data-step="1">
-          <div class="step-title"><span class="step-num">1</span> Tenant & Property Details</div>
+          <div class="step-title"><span class="step-num">1</span> Placement & Property Details</div>
           <div class="form-grid">
             <div class="form-group">
               <label>First Name <span class="req">*</span></label>
-              <input type="text" name="tenant_first_name" required placeholder="Tenant first name">
+              <input type="text" name="tenant_first_name" required placeholder="Placement first name">
             </div>
             <div class="form-group">
               <label>Last Name <span class="req">*</span></label>
-              <input type="text" name="tenant_last_name" required placeholder="Tenant last name">
+              <input type="text" name="tenant_last_name" required placeholder="Placement last name">
             </div>
             <div class="form-group">
               <label>Phone</label>
@@ -207,17 +207,17 @@
         <div class="form-step" data-step="3">
           <div class="step-title"><span class="step-num">3</span> Information Sharing Consent</div>
           <div class="consent-box">
-            <p>The tenant gives permission for <strong>CARE Real Estate</strong> to share personal information with other service providers in connection with their care, including accessing and sharing medical, mental health and police records.</p>
+            <p>The placement gives permission for <strong>CARE Real Estate</strong> to share personal information with other service providers in connection with their care, including accessing and sharing medical, mental health and police records.</p>
             <div class="form-group" style="margin-top:16px;">
               <label>Date of Birth</label>
               <input type="date" name="date_of_birth">
             </div>
             <div class="form-group">
               <label>Excluded Agencies (if any)</label>
-              <textarea name="excluded_agencies" rows="2" placeholder="List any agencies the tenant does NOT want information shared with..."></textarea>
+              <textarea name="excluded_agencies" rows="2" placeholder="List any agencies the placement does NOT want information shared with..."></textarea>
             </div>
             <div class="consent-check">
-              <label><input type="checkbox" name="consent_agreed" value="1"> <strong>Tenant agrees</strong> to information being shared and gathered between services</label>
+              <label><input type="checkbox" name="consent_agreed" value="1"> <strong>Placement agrees</strong> to information being shared and gathered between services</label>
             </div>
           </div>
           <div class="step-actions">
@@ -232,12 +232,12 @@
 
           <!-- Sign on behalf toggle -->
           <div class="sign-behalf-toggle">
-            <label><input type="checkbox" id="sign-on-behalf" onchange="toggleSignOnBehalf()"> <strong>Sign on behalf of tenant</strong> (tenant not present or no email)</label>
+            <label><input type="checkbox" id="sign-on-behalf" onchange="toggleSignOnBehalf()"> <strong>Sign on behalf of placement</strong> (tenant not present or no email)</label>
           </div>
 
-          <!-- Tenant Signature -->
+          <!-- Placement Signature -->
           <div id="tenant-sig-section" class="sig-section">
-            <h3>Tenant Signature</h3>
+            <h3>Placement Signature</h3>
             <div class="sig-method-toggle">
               <button type="button" class="sig-tab active" data-target="tenant" data-method="draw" onclick="switchSigMethod(this)"><i class="fas fa-pen"></i> Draw</button>
               <button type="button" class="sig-tab" data-target="tenant" data-method="type" onclick="switchSigMethod(this)"><i class="fas fa-keyboard"></i> Type</button>
@@ -254,10 +254,10 @@
 
           <!-- On-behalf note (hidden by default) -->
           <div id="behalf-note" class="behalf-note" style="display:none;">
-            <div class="behalf-info"><i class="fas fa-info-circle"></i> Agent is signing on behalf of the tenant. The PDF will note this.</div>
+            <div class="behalf-info"><i class="fas fa-info-circle"></i> Agent is signing on behalf of the placement. The PDF will note this.</div>
             <div class="form-group">
               <label>Reason for signing on behalf</label>
-              <input type="text" name="behalf_reason" placeholder="e.g. Tenant not present, no email available">
+              <input type="text" name="behalf_reason" placeholder="e.g. Placement not present, no email available">
             </div>
           </div>
 
@@ -306,7 +306,7 @@
       </div>
 
       <div class="form-step active">
-        <div class="step-title"><span class="step-num"><i class="fas fa-user"></i></span> Tenant & Property</div>
+        <div class="step-title"><span class="step-num"><i class="fas fa-user"></i></span> Placement & Property</div>
         <div class="form-grid">
           <div class="form-group">
             <label>First Name</label>
@@ -429,8 +429,8 @@
         <div class="step-title"><span class="step-num"><i class="fas fa-pen-nib"></i></span> Signatures</div>
         <div style="display:flex;gap:32px;flex-wrap:wrap;">
           <div>
-            <label style="font-weight:600;margin-bottom:8px;display:block;">Tenant Signature</label>
-            <img id="detail-tenant-sig" style="max-width:300px;border:1px solid #ddd;border-radius:8px;" alt="Tenant signature">
+            <label style="font-weight:600;margin-bottom:8px;display:block;">Placement Signature</label>
+            <img id="detail-tenant-sig" style="max-width:300px;border:1px solid #ddd;border-radius:8px;" alt="Placement signature">
           </div>
           <div>
             <label style="font-weight:600;margin-bottom:8px;display:block;">Agent: <span id="detail-agent-name">â</span></label>
