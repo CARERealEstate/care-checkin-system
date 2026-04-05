@@ -420,81 +420,44 @@ async function downloadPDF(bookingId) {
   }
 }
 
-// Core PDF generation - parse HTML and use html2pdf.js with proper style extraction
+// PDF generation - opens the check-in report in a new window for printing/saving as PDF
 async function generateAndDownloadPdf(formId) {
-  showToast('Generating PDF...', 'success');
+  showToast('Preparing document...', 'success');
   try {
     // Regenerate HTML on server
     await fetch(`/api/pdf/generate/${formId}`, { method: 'POST' });
-    // Fetch the full HTML document
-    const htmlRes = await fetch(`/api/pdf/download/${formId}`);
-    if (!htmlRes.ok) throw new Error('Failed to fetch document');
-    const htmlContent = await htmlRes.text();
 
-    // Parse the HTML to extract styles and body separately
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlContent, 'text/html');
+    // Open the HTML report in a new window - it renders perfectly with all styles
+    const printWindow = window.open(`/api/pdf/download/${formId}`, '_blank');
 
-    // Create a container div for pdf rendering
-    const container = document.createElement('div');
-    container.id = 'pdf-render-container';
-    container.style.position = 'fixed';
-    container.style.left = '-9999px';
-    container.style.top = '0';
-    container.style.width = '794px';
-    container.style.background = 'white';
-    container.style.zIndex = '-1';
+    if (!printWindow) {
+      showToast('Please allow popups to download PDF', 'error');
+      return;
+    }
 
-    // Copy all style tags from the parsed document
-    const styles = doc.querySelectorAll('style');
-    styles.forEach(function(s) {
-      const newStyle = document.createElement('style');
-      newStyle.textContent = s.textContent;
-      container.appendChild(newStyle);
+    // Wait for the window to fully load, then auto-trigger print (Save as PDF)
+    printWindow.addEventListener('load', function() {
+      // Add a small print button bar at the top for convenience
+      var bar = printWindow.document.createElement('div');
+      bar.id = 'print-bar';
+      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#2d6a4f;color:white;padding:10px 20px;z-index:99999;display:flex;align-items:center;gap:15px;font-family:Inter,Arial,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.2);';
+      bar.innerHTML = '<span style="font-weight:600;font-size:14px;">CARE Check-In Report</span>'
+        + '<button onclick="document.getElementById(\'print-bar\').style.display=\'none\';window.print();" style="background:white;color:#2d6a4f;border:none;padding:8px 20px;border-radius:6px;font-weight:600;cursor:pointer;font-size:14px;">Save as PDF</button>'
+        + '<button onclick="document.getElementById(\'print-bar\').style.display=\'none\';" style="background:transparent;color:white;border:1px solid white;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;">Hide Bar</button>'
+        + '<span style="font-size:12px;opacity:0.8;margin-left:auto;">Tip: Use Save as PDF in the print dialog</span>';
+      printWindow.document.body.style.paddingTop = '50px';
+      printWindow.document.body.insertBefore(bar, printWindow.document.body.firstChild);
+
+      // Add print styles to hide the bar when printing
+      var printStyle = printWindow.document.createElement('style');
+      printStyle.textContent = '@media print { #print-bar { display: none !important; } body { padding-top: 0 !important; } }';
+      printWindow.document.head.appendChild(printStyle);
     });
 
-    // Copy all link[rel=stylesheet] tags
-    const links = doc.querySelectorAll('link[rel="stylesheet"]');
-    links.forEach(function(l) {
-      const newLink = document.createElement('link');
-      newLink.rel = 'stylesheet';
-      newLink.href = l.href;
-      container.appendChild(newLink);
-    });
-
-    // Copy body content
-    const bodyContent = doc.body ? doc.body.innerHTML : htmlContent;
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = bodyContent;
-    container.appendChild(wrapper);
-
-    document.body.appendChild(container);
-
-    // Wait for styles and images to load
-    await new Promise(function(resolve) { setTimeout(resolve, 1500); });
-
-    const opt = {
-      margin: [2, 2, 2, 2],
-      filename: 'CARE-CheckIn-' + formId + '.pdf',
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        letterRendering: true,
-        logging: false,
-        width: 794,
-        windowWidth: 794
-      },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-    };
-
-    await html2pdf().set(opt).from(container).save();
-    document.body.removeChild(container);
-    showToast('PDF downloaded!', 'success');
+    showToast('Document opened - click Save as PDF to download', 'success');
   } catch (err) {
-    console.error('PDF generation error:', err);
-    showToast('PDF error: ' + err.message, 'error');
+    console.error('PDF error:', err);
+    showToast('Error: ' + err.message, 'error');
   }
 }
 
