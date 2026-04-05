@@ -23,7 +23,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
       imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'"]
+      connectSrc: ["'self'", "https://ims-na1.adobelogin.com", "https://api.adobesign.com", "https://api.eu1.adobesign.com", "https://api.na1.adobesign.com"]
     }
   }
 }));
