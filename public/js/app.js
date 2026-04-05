@@ -421,46 +421,36 @@ async function downloadPDF(bookingId) {
 }
 
 // PDF generation - opens the check-in report in a new window for printing/saving as PDF
+// Server-side PDF generation via Puppeteer - downloads real PDF
 async function generateAndDownloadPdf(formId) {
-  showToast('Preparing document...', 'success');
+  showToast('Generating PDF...', 'success');
   try {
-    // Regenerate HTML on server
-    await fetch(`/api/pdf/generate/${formId}`, { method: 'POST' });
+    // Ensure HTML is generated on server
+    await fetch('/api/pdf/generate/' + formId, { method: 'POST' });
 
-    // Open the HTML report in a new window - it renders perfectly with all styles
-    const printWindow = window.open(`/api/pdf/download/${formId}`, '_blank');
-
-    if (!printWindow) {
-      showToast('Please allow popups to download PDF', 'error');
-      return;
+    // Download the real PDF from server (Puppeteer converts HTML to PDF)
+    var res = await fetch('/api/pdf/download/' + formId);
+    if (!res.ok) {
+      var errData = await res.json().catch(function() { return {}; });
+      throw new Error(errData.error || 'Failed to generate PDF');
     }
 
-    // Wait for the window to fully load, then auto-trigger print (Save as PDF)
-    printWindow.addEventListener('load', function() {
-      // Add a small print button bar at the top for convenience
-      var bar = printWindow.document.createElement('div');
-      bar.id = 'print-bar';
-      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#2d6a4f;color:white;padding:10px 20px;z-index:99999;display:flex;align-items:center;gap:15px;font-family:Inter,Arial,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.2);';
-      bar.innerHTML = '<span style="font-weight:600;font-size:14px;">CARE Check-In Report</span>'
-        + '<button onclick="document.getElementById(\'print-bar\').style.display=\'none\';window.print();" style="background:white;color:#2d6a4f;border:none;padding:8px 20px;border-radius:6px;font-weight:600;cursor:pointer;font-size:14px;">Save as PDF</button>'
-        + '<button onclick="document.getElementById(\'print-bar\').style.display=\'none\';" style="background:transparent;color:white;border:1px solid white;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;">Hide Bar</button>'
-        + '<span style="font-size:12px;opacity:0.8;margin-left:auto;">Tip: Use Save as PDF in the print dialog</span>';
-      printWindow.document.body.style.paddingTop = '50px';
-      printWindow.document.body.insertBefore(bar, printWindow.document.body.firstChild);
+    var blob = await res.blob();
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'CARE-CheckIn-' + formId + '.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 
-      // Add print styles to hide the bar when printing
-      var printStyle = printWindow.document.createElement('style');
-      printStyle.textContent = '@media print { #print-bar { display: none !important; } body { padding-top: 0 !important; } }';
-      printWindow.document.head.appendChild(printStyle);
-    });
-
-    showToast('Document opened - click Save as PDF to download', 'success');
+    showToast('PDF downloaded!', 'success');
   } catch (err) {
     console.error('PDF error:', err);
     showToast('Error: ' + err.message, 'error');
   }
 }
-
 // Called from the Download PDF button on the record detail page
 function downloadAsPdf() {
   if (!currentViewBookingId) {
