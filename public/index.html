@@ -7,7 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.2.0/signature_pad.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.2.0/signature_pad.umd.min.js"></script>
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
@@ -295,8 +296,8 @@
         <h1><i class="fas fa-arrow-left" style="cursor:pointer;margin-right:12px;" onclick="navigateTo('dashboard')"></i> Record Details</h1>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-outline" id="detail-pdf-btn"><i class="fas fa-file-pdf"></i> View PDF</button>
+            <button class="btn btn-success" onclick="downloadAsPdf()">Download PDF</button>
           <button class="btn btn-outline" id="detail-regen-btn"><i class="fas fa-redo"></i> Regenerate PDF</button>
-          <button class="btn btn-outline" id="detail-adobe-sign-btn" style="display:none;background:#e74c3c;color:white;border-color:#e74c3c;"><i class="fas fa-pen-fancy"></i> Send via Adobe Sign</button>
           <button class="btn btn-primary" onclick="saveRecordEdits()"><i class="fas fa-save"></i> Save Changes</button>
         </div>
       </div>
