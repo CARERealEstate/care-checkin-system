@@ -21,7 +21,7 @@ function navigateTo(page) {
     resetForm();
     currentStep = 1;
     showStep(1);
-    setTimeout(initSignaturePads, 100);
+    // Sig pads init when step 4 shown
   }
 }
 
@@ -87,10 +87,12 @@ function initSignaturePads() {
   const tCanvas = document.getElementById('tenant-sig-canvas');
   const aCanvas = document.getElementById('agent-sig-canvas');
   if (tCanvas && !tenantSigPad) {
+    if (tenantSigPad) { tenantSigPad.off(); tenantSigPad = null; }
     resizeCanvas(tCanvas);
     tenantSigPad = new SignaturePad(tCanvas, { backgroundColor: 'rgba(250,250,250,1)', penColor: '#222', minWidth: 1, maxWidth: 3 });
   }
   if (aCanvas && !agentSigPad) {
+    if (agentSigPad) { agentSigPad.off(); agentSigPad = null; }
     resizeCanvas(aCanvas);
     agentSigPad = new SignaturePad(aCanvas, { backgroundColor: 'rgba(250,250,250,1)', penColor: '#222', minWidth: 1, maxWidth: 3 });
   }
@@ -217,6 +219,7 @@ async function submitCheckIn() {
   }
 
   let tenantSig = null;
+  let signingMethod = 'in_person';
   if (signOnBehalf) {
     // Generate a signature image with tenant's name in block capitals
     const tenantName = (values.tenant_first_name + ' ' + values.tenant_last_name).toUpperCase();
@@ -235,10 +238,13 @@ async function submitCheckIn() {
     ctx.fillStyle = '#888';
     ctx.fillText('(Signed on behalf by agent)', 200, 70);
     tenantSig = canvas.toDataURL();
+  } else if (values.tenant_email && values.tenant_email.includes("@")) {
+    tenantSig = null;
+    signingMethod = "pending_digital";
   } else {
-    tenantSig = getSignatureDataURL('tenant');
+    tenantSig = getSignatureDataURL("tenant");
     if (!tenantSig) {
-      showToast('Please provide the tenant signature', 'error');
+      showToast("Please provide the placement signature or enter an email for digital signing", "error");
       return;
     }
   }
