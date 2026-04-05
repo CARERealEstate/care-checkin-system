@@ -420,7 +420,7 @@ async function downloadPDF(bookingId) {
   }
 }
 
-// Core PDF generation using html2pdf.js - fetches HTML from server and converts to real PDF
+// Core PDF generation using html2pdf.js with iframe for full HTML rendering
 async function generateAndDownloadPdf(formId) {
   showToast('Generating PDF...', 'success');
   try {
@@ -430,34 +430,55 @@ async function generateAndDownloadPdf(formId) {
     const htmlRes = await fetch(`/api/pdf/download/${formId}`);
     if (!htmlRes.ok) throw new Error('Failed to fetch document');
     const htmlContent = await htmlRes.text();
-    // Create a hidden container to render the HTML
-    const container = document.createElement('div');
-    container.style.position = 'fixed';
-    container.style.left = '-9999px';
-    container.style.top = '0';
-    container.style.width = '210mm';
-    container.innerHTML = htmlContent;
-    document.body.appendChild(container);
-    // Use html2pdf.js to convert to actual PDF
+
+    // Use a hidden iframe so the full HTML document (including <style> tags) renders properly
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.left = '-9999px';
+    iframe.style.top = '0';
+    iframe.style.width = '210mm';
+    iframe.style.height = '297mm';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write(htmlContent);
+    iframeDoc.close();
+
+    // Wait for content to fully render (images, fonts, etc)
+    await new Promise(resolve => {
+      iframe.onload = resolve;
+      setTimeout(resolve, 2000); // fallback timeout
+    });
+
+    // Use html2pdf on the iframe body content
     const opt = {
       margin: [5, 5, 5, 5],
       filename: 'CARE-CheckIn-' + formId + '.pdf',
-      image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        letterRendering: true,
+        logging: false,
+        windowWidth: iframe.contentWindow.document.body.scrollWidth || 794
+      },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     };
-    await html2pdf().set(opt).from(container).save();
-    document.body.removeChild(container);
+
+    await html2pdf().set(opt).from(iframeDoc.body).save();
+    document.body.removeChild(iframe);
     showToast('PDF downloaded!', 'success');
   } catch (err) {
-    showToast('PDF generation error: ' + err.message, 'error');
+    console.error('PDF generation error:', err);
+    showToast('PDF error: ' + err.message, 'error');
   }
 }
 
 // Called from the Download PDF button on the record detail page
 function downloadAsPdf() {
-  // Find the current form ID from the detail page context
   if (!currentViewBookingId) {
     showToast('No record selected', 'error');
     return;
