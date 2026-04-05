@@ -238,13 +238,10 @@ async function submitCheckIn() {
     ctx.fillStyle = '#888';
     ctx.fillText('(Signed on behalf by agent)', 200, 70);
     tenantSig = canvas.toDataURL();
-  } else if (values.tenant_email && values.tenant_email.includes("@")) {
-    tenantSig = null;
-    signingMethod = "pending_digital";
   } else {
     tenantSig = getSignatureDataURL("tenant");
     if (!tenantSig) {
-      showToast("Please provide the placement signature or enter an email for digital signing", "error");
+      showToast("Please provide the placement signature or use Sign on Behalf", "error");
       return;
     }
   }
@@ -322,26 +319,10 @@ async function submitCheckIn() {
     document.getElementById('loading').style.display = 'none';
     showToast('Check-in complete! Opening report...', 'success');
 
-    // Open the HTML report in a new tab (user can print to PDF from there)
-    window.open(`/api/pdf/download/${formId}`, '_blank');
+    // Generate and download actual PDF
+    await generateAndDownloadPdf(formId);
 
-    // Offer Adobe Sign if tenant has email
-    if (values.tenant_email && values.tenant_email.includes('@')) {
-      setTimeout(() => {
-        if (confirm(`Send documents to ${values.tenant_email} for digital signing via Adobe Sign?`)) {
-          fetch(`/api/adobe-sign/send/${formId}`, { method: 'POST' })
-            .then(r => r.json())
-            .then(result => {
-              if (result.success) {
-                showToast(`Adobe Sign sent to ${values.tenant_email}!`, 'success');
-              } else {
-                showToast('Adobe Sign: ' + (result.error || 'Not configured yet'), 'error');
-              }
-            })
-            .catch(e => showToast('Adobe Sign not available: ' + e.message, 'error'));
-        }
-      }, 2000);
-    }
+
 
     setTimeout(() => navigateTo('dashboard'), 1500);
 
@@ -433,14 +414,55 @@ async function downloadPDF(bookingId) {
       showToast('No check-in form found for this record', 'error');
       return;
     }
-    // Always regenerate the PDF first (handles ephemeral storage on Railway)
-    showToast('Generating PDF...', 'success');
-    const genRes = await fetch(`/api/pdf/generate/${form.id}`, { method: 'POST' });
-    if (!genRes.ok) throw new Error('Failed to generate PDF');
-    window.open(`/api/pdf/download/${form.id}`, '_blank');
+    await generateAndDownloadPdf(form.id);
   } catch (err) {
     showToast('Error downloading PDF: ' + err.message, 'error');
   }
+}
+
+// Core PDF generation using html2pdf.js - fetches HTML from server and converts to real PDF
+async function generateAndDownloadPdf(formId) {
+  showToast('Generating PDF...', 'success');
+  try {
+    // Regenerate HTML on server first
+    await fetch(`/api/pdf/generate/${formId}`, { method: 'POST' });
+    // Fetch the HTML content
+    const htmlRes = await fetch(`/api/pdf/download/${formId}`);
+    if (!htmlRes.ok) throw new Error('Failed to fetch document');
+    const htmlContent = await htmlRes.text();
+    // Create a hidden container to render the HTML
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '210mm';
+    container.innerHTML = htmlContent;
+    document.body.appendChild(container);
+    // Use html2pdf.js to convert to actual PDF
+    const opt = {
+      margin: [5, 5, 5, 5],
+      filename: 'CARE-CheckIn-' + formId + '.pdf',
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+    await html2pdf().set(opt).from(container).save();
+    document.body.removeChild(container);
+    showToast('PDF downloaded!', 'success');
+  } catch (err) {
+    showToast('PDF generation error: ' + err.message, 'error');
+  }
+}
+
+// Called from the Download PDF button on the record detail page
+function downloadAsPdf() {
+  // Find the current form ID from the detail page context
+  if (!currentViewBookingId) {
+    showToast('No record selected', 'error');
+    return;
+  }
+  downloadPDF(currentViewBookingId);
 }
 
 // ===== View Record Detail =====
@@ -524,12 +546,11 @@ async function viewRecord(bookingId) {
         pdfBtn.style.display = '';
         pdfBtn.onclick = async () => {
           pdfBtn.disabled = true;
-          pdfBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+          pdfBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating PDF...';
           try {
-            await fetch(`/api/pdf/generate/${checkInForm.id}`, { method: 'POST' });
-            window.open(`/api/pdf/download/${checkInForm.id}`, '_blank');
+            await generateAndDownloadPdf(checkInForm.id);
           } catch(e) {
-            showToast('Error loading PDF', 'error');
+            showToast('Error generating PDF', 'error');
           }
           pdfBtn.disabled = false;
           pdfBtn.innerHTML = '<i class="fas fa-file-pdf"></i> View PDF';
@@ -548,10 +569,7 @@ async function viewRecord(bookingId) {
           regenBtn.disabled = true;
           regenBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
           try {
-            const r = await fetch(`/api/pdf/generate/${checkInForm.id}`, { method: 'POST' });
-            if (!r.ok) throw new Error('Failed');
-            showToast('PDF regenerated!', 'success');
-            window.open(`/api/pdf/download/${checkInForm.id}`, '_blank');
+            await generateAndDownloadPdf(checkInForm.id);
           } catch(e) {
             showToast('Error regenerating PDF', 'error');
           }
@@ -560,42 +578,6 @@ async function viewRecord(bookingId) {
         };
       } else {
         regenBtn.style.display = 'none';
-      }
-    }
-
-    // Adobe Sign button - show if tenant has email and form exists
-    const adobeSignBtn = document.getElementById('detail-adobe-sign-btn');
-    if (adobeSignBtn) {
-      if (checkInForm && b.tenant_email && b.tenant_email.includes('@')) {
-        adobeSignBtn.style.display = '';
-        const adobeSentInfo = formData.adobe_sign_sent_at ? ` (Sent ${new Date(formData.adobe_sign_sent_at).toLocaleDateString('en-GB')})` : '';
-        if (formData.adobe_sign_agreement_id) {
-          adobeSignBtn.innerHTML = '<i class="fas fa-check"></i> Sent via Adobe Sign' + adobeSentInfo;
-          adobeSignBtn.style.background = '#27ae60';
-          adobeSignBtn.style.borderColor = '#27ae60';
-        }
-        adobeSignBtn.onclick = async () => {
-          if (!confirm(`Send check-in documents to ${b.tenant_email} for signing via Adobe Sign?`)) return;
-          adobeSignBtn.disabled = true;
-          adobeSignBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-          try {
-            // Regenerate PDF first to ensure latest content
-            await fetch(`/api/pdf/generate/${checkInForm.id}`, { method: 'POST' });
-            const r = await fetch(`/api/adobe-sign/send/${checkInForm.id}`, { method: 'POST' });
-            const result = await r.json();
-            if (!r.ok) throw new Error(result.error || 'Failed to send');
-            showToast(`Document sent to ${b.tenant_email} via Adobe Sign!`, 'success');
-            adobeSignBtn.innerHTML = '<i class="fas fa-check"></i> Sent via Adobe Sign';
-            adobeSignBtn.style.background = '#27ae60';
-            adobeSignBtn.style.borderColor = '#27ae60';
-          } catch(e) {
-            showToast('Adobe Sign error: ' + e.message, 'error');
-            adobeSignBtn.innerHTML = '<i class="fas fa-pen-fancy"></i> Send via Adobe Sign';
-          }
-          adobeSignBtn.disabled = false;
-        };
-      } else {
-        adobeSignBtn.style.display = 'none';
       }
     }
 
