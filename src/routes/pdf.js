@@ -86,7 +86,49 @@ async function getHtmlContent(form, booking) {
   return htmlContent;
 }
 
-// GET /api/pdf/download/:formId - converts HTML to real PDF via Puppeteer
+// Helper: convert HTML to PDF buffer via Puppeteer
+async function htmlToPdfBuffer(htmlContent) {
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  try {
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0', timeout: 30000 });
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+      preferCSSPageSize: false
+    });
+    return pdfBuffer;
+  } finally {
+    await page.close();
+  }
+}
+
+// GET /api/pdf/view/:formId - view PDF inline in browser
+router.get('/view/:formId', async (req, res) => {
+  try {
+    const form = db.prepare('SELECT * FROM forms WHERE id = @id').get({ id: Number(req.params.formId) });
+    if (!form) return res.status(404).json({ error: 'Form not found' });
+
+    const booking = db.prepare('SELECT * FROM bookings WHERE id = @id').get({ id: form.booking_id });
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+    const htmlContent = await getHtmlContent(form, booking);
+    if (!htmlContent) return res.status(500).json({ error: 'Could not generate content' });
+
+    const pdfBuffer = await htmlToPdfBuffer(htmlContent);
+    const filename = 'CARE-CheckIn-' + form.id + '.pdf';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="' + filename + '"');
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.send(pdfBuffer);
+  } catch (err) {
+    logger.error('PDF view error', { error: err.message, stack: err.stack });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/pdf/download/:formId - download PDF as attachment
 router.get('/download/:formId', async (req, res) => {
   try {
     const form = db.prepare('SELECT * FROM forms WHERE id = @id').get({ id: Number(req.params.formId) });
@@ -96,30 +138,14 @@ router.get('/download/:formId', async (req, res) => {
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
     const htmlContent = await getHtmlContent(form, booking);
-    if (!htmlContent) return res.status(500).json({ error: 'Could not generate HTML content' });
+    if (!htmlContent) return res.status(500).json({ error: 'Could not generate content' });
 
-    // Convert HTML to real PDF using Puppeteer
-    const browser = await getBrowser();
-    const page = await browser.newPage();
-
-    try {
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0', timeout: 30000 });
-
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
-        preferCSSPageSize: false
-      });
-
-      const filename = 'CARE-CheckIn-' + form.id + '.pdf';
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
-      res.setHeader('Content-Length', pdfBuffer.length);
-      res.send(pdfBuffer);
-    } finally {
-      await page.close();
-    }
+    const pdfBuffer = await htmlToPdfBuffer(htmlContent);
+    const filename = 'CARE-CheckIn-' + form.id + '.pdf';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.send(pdfBuffer);
   } catch (err) {
     logger.error('PDF download error', { error: err.message, stack: err.stack });
     res.status(500).json({ error: err.message });
