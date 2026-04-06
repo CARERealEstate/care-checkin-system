@@ -240,10 +240,7 @@ async function submitCheckIn() {
     tenantSig = canvas.toDataURL();
   } else {
     tenantSig = getSignatureDataURL("tenant");
-    if (!tenantSig) {
-      showToast("Please provide the placement signature or use Sign on Behalf", "error");
-      return;
-    }
+    // Tenant signature is optional - can be signed later
   }
 
   const inventory = getInventoryData();
@@ -421,20 +418,16 @@ async function downloadPDF(bookingId) {
 }
 
 // PDF generation - opens the check-in report in a new window for printing/saving as PDF
-// Server-side PDF generation via Puppeteer - downloads real PDF
+// Server-side PDF generation via Puppeteer
 async function generateAndDownloadPdf(formId) {
   showToast('Generating PDF...', 'success');
   try {
-    // Ensure HTML is generated on server
     await fetch('/api/pdf/generate/' + formId, { method: 'POST' });
-
-    // Download the real PDF from server (Puppeteer converts HTML to PDF)
     var res = await fetch('/api/pdf/download/' + formId);
     if (!res.ok) {
       var errData = await res.json().catch(function() { return {}; });
       throw new Error(errData.error || 'Failed to generate PDF');
     }
-
     var blob = await res.blob();
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -444,22 +437,42 @@ async function generateAndDownloadPdf(formId) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-
     showToast('PDF downloaded!', 'success');
   } catch (err) {
     console.error('PDF error:', err);
     showToast('Error: ' + err.message, 'error');
   }
 }
+
+// View PDF inline in a new browser tab
+async function viewPdfInBrowser(formId) {
+  showToast('Preparing PDF view...', 'success');
+  try {
+    await fetch('/api/pdf/generate/' + formId, { method: 'POST' });
+    window.open('/api/pdf/view/' + formId, '_blank');
+  } catch (err) {
+    console.error('PDF view error:', err);
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
 // Called from the Download PDF button on the record detail page
 function downloadAsPdf() {
-  if (!currentViewBookingId) {
-    showToast('No record selected', 'error');
-    return;
-  }
+  if (!currentViewBookingId) { showToast('No record selected', 'error'); return; }
   downloadPDF(currentViewBookingId);
 }
 
+// Called from View PDF button - opens in new tab
+function viewAsPdf() {
+  if (!currentViewBookingId) { showToast('No record selected', 'error'); return; }
+  // Find the form ID for this booking
+  fetch('/api/bookings/' + currentViewBookingId).then(function(res) { return res.json(); }).then(function(data) {
+    var forms = data.forms || [];
+    var form = forms.find(function(f) { return f.type === 'check_in'; });
+    if (!form) { showToast('No check-in form found', 'error'); return; }
+    viewPdfInBrowser(form.id);
+  }).catch(function(err) { showToast('Error: ' + err.message, 'error'); });
+}
 // ===== View Record Detail =====
 let currentViewBookingId = null;
 
@@ -541,11 +554,11 @@ async function viewRecord(bookingId) {
         pdfBtn.style.display = '';
         pdfBtn.onclick = async () => {
           pdfBtn.disabled = true;
-          pdfBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating PDF...';
+          pdfBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Opening PDF...';
           try {
-            await generateAndDownloadPdf(checkInForm.id);
+            await viewPdfInBrowser(checkInForm.id);
           } catch(e) {
-            showToast('Error generating PDF', 'error');
+            showToast('Error viewing PDF', 'error');
           }
           pdfBtn.disabled = false;
           pdfBtn.innerHTML = '<i class="fas fa-file-pdf"></i> View PDF';
@@ -555,7 +568,7 @@ async function viewRecord(bookingId) {
       }
     }
 
-    // Regenerate PDF button
+    // Regenerate/Download PDF button
     const regenBtn = document.getElementById('detail-regen-btn');
     if (regenBtn) {
       if (checkInForm) {
