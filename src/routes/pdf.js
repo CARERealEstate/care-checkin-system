@@ -98,7 +98,7 @@ async function htmlToPdfBuffer(htmlContent) {
       margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
       preferCSSPageSize: false
     });
-    return pdfBuffer;
+    return Buffer.from(pdfBuffer);
   } finally {
     await page.close();
   }
