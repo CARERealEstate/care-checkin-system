@@ -453,6 +453,27 @@ function deleteCurrentRecord() {
   deleteBooking(currentViewBookingId);
 }
 
+async function deleteCheckInForm() {
+  if (!currentViewBookingId) { showToast("No record selected", "error"); return; }
+  try {
+    var res = await fetch("/api/bookings/" + currentViewBookingId);
+    var data = await res.json();
+    var forms = data.forms || [];
+    var form = forms.find(function(f) { return f.type === "check_in"; });
+    if (!form) { showToast("No check-in form found to delete", "error"); return; }
+    var confirmed = confirm("Are you sure you want to delete this check-in form? The booking record will be kept but the form data, signatures and evidence will be removed. You can then redo the check-in.");
+    if (!confirmed) return;
+    var delRes = await fetch("/api/forms/" + form.id, { method: "DELETE" });
+    var delData = await delRes.json();
+    if (!delRes.ok) throw new Error(delData.error || "Failed to delete form");
+    showToast("Check-in form deleted. You can now redo the check-in.", "success");
+    viewRecord(currentViewBookingId);
+  } catch (err) {
+    console.error("Delete form error:", err);
+    showToast("Error: " + err.message, "error");
+  }
+}
+
 // PDF generation - opens the check-in report in a new window for printing/saving as PDF
 // Server-side PDF generation via Puppeteer
 async function generateAndDownloadPdf(formId) {
