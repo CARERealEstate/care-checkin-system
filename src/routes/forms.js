@@ -93,4 +93,27 @@ router.put('/:id', (req, res) => {
   }
 });
 
+// DELETE /api/forms/:id - delete a specific form (e.g. check-in form)
+router.delete('/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const form = db.prepare('SELECT * FROM forms WHERE id = @id').get({ id });
+    if (!form) return res.status(404).json({ error: 'Form not found' });
+
+    // Delete associated evidence
+    db.prepare('DELETE FROM evidence WHERE form_id = @id').run({ id });
+    // Delete the form
+    db.prepare('DELETE FROM forms WHERE id = @id').run({ id });
+
+    // Reset booking status back to active since the form is gone
+    db.prepare("UPDATE bookings SET status = 'active' WHERE id = @id").run({ id: form.booking_id });
+
+    logger.info('Form deleted', { formId: id, type: form.type, bookingId: form.booking_id });
+    res.json({ success: true, message: 'Form deleted successfully' });
+  } catch (err) {
+    logger.error('Error deleting form', { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
