@@ -91,4 +91,25 @@ router.put('/:id', (req, res) => {
   }
 });
 
+// DELETE /api/bookings/:id
+router.delete('/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const booking = db.prepare('SELECT * FROM bookings WHERE id = @id').get({ id });
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+    // Delete related records first (foreign key order)
+    db.prepare('DELETE FROM evidence WHERE booking_id = @id').run({ id });
+    db.prepare('DELETE FROM audit_log WHERE booking_id = @id').run({ id });
+    db.prepare('DELETE FROM forms WHERE booking_id = @id').run({ id });
+    db.prepare('DELETE FROM bookings WHERE id = @id').run({ id });
+
+    logger.info('Booking deleted', { bookingId: id, tenant: booking.tenant_first_name + ' ' + booking.tenant_last_name });
+    res.json({ success: true, message: 'Record deleted successfully' });
+  } catch (err) {
+    logger.error('Error deleting booking', { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
