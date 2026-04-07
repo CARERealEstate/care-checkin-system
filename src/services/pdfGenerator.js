@@ -269,8 +269,8 @@ function page2_welcomePack(booking, form, formData) {
     <div class="contact-box">
       <h2>CONTACT INFORMATION</h2>
       <p><strong>Office/ WhatsApp number:</strong> 0204 553 2233 | Option 1 (General Enquiries) or Option 2 (Maintenance) OR the Property Managers on ext. 214</p>
-      <p><strong>Office opening hours:</strong> Mon â Friday 9am-6pm | Saturday 10am-3pm | Sunday CLOSED</p>
-      <p><strong>Out of Hours â 24hr (Emergency only):</strong> <span class="green">WhatsApp - 0204 553 2233</span> OR <span class="red">Call 0204 553 2233 (press Option 1)</span></p>
+      <p><strong>Office opening hours:</strong> Mon – Friday 9am-6pm | Saturday 10am-3pm | Sunday CLOSED</p>
+      <p><strong>Out of Hours – 24hr (Emergency only):</strong> <span class="green">WhatsApp - 0204 553 2233</span> OR <span class="red">Call 0204 553 2233 (press Option 1)</span></p>
     </div>
 
     <div class="section-heading">Property Maintenance and Repairs:</div>
@@ -428,12 +428,12 @@ function pageEvidence(booking, form, evidence) {
   return `<div class="page">
     ${CARE_LOGO_HTML}
     <div style="font-size:16px;font-weight:700;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #e74c3c">Evidence & Notes</div>
-    <p style="font-size:10px;color:#666;margin-bottom:12px">${form.type==='check_in'?'Check-In':'Check-Out'} Evidence â ${booking.tenant_first_name} ${booking.tenant_last_name} â ${booking.property_address||''}</p>
+    <p style="font-size:10px;color:#666;margin-bottom:12px">${form.type==='check_in'?'Check-In':'Check-Out'} Evidence — ${booking.tenant_first_name} ${booking.tenant_last_name} — ${booking.property_address||''}</p>
     ${evidence.map(e => {
       const b64 = e.file_type === 'image' ? img64(e.file_path) : null;
       return `<div class="evidence-item">
         ${b64?`<img src="${b64}">`:`<p style="padding:20px;text-align:center;background:#eee;border-radius:4px">[Document: ${e.original_filename}]</p>`}
-        <div class="evidence-meta"><span class="cat">${(e.category||'').replace('_','-')}</span> â ${e.original_filename} â ${fmtDT(e.uploaded_at)} â By: ${e.uploaded_by}</div>
+        <div class="evidence-meta"><span class="cat">${(e.category||'').replace('_','-')}</span> — ${e.original_filename} — ${fmtDT(e.uploaded_at)} — By: ${e.uploaded_by}</div>
         ${e.note?`<div class="evidence-note">"${e.note}"</div>`:''}
       </div>`;
     }).join('')}
@@ -464,7 +464,7 @@ function buildCheckOutHTML(booking, form, evidence) {
           <h3 style="font-size:11px">CONDITION SUMMARY</h3>
           <div class="field-row"><span class="field-label" style="min-width:80px">Overall</span><span style="padding:2px 8px;border-radius:10px;font-size:9px;font-weight:600;${cb(fd.overall_condition)}">${fd.overall_condition||'N/A'}</span></div>
           <div class="field-row"><span class="field-label" style="min-width:80px">Cleaning</span><span style="padding:2px 8px;border-radius:10px;font-size:9px;font-weight:600;${cb(fd.cleaning_status)}">${fd.cleaning_status||'N/A'}</span></div>
-          <div class="field-row"><span class="field-label" style="min-width:80px">Damages</span><span style="font-weight:600">${fd.damages_found==='yes'?'Yes â See notes':'No'}</span></div>
+          <div class="field-row"><span class="field-label" style="min-width:80px">Damages</span><span style="font-weight:600">${fd.damages_found==='yes'?'Yes — See notes':'No'}</span></div>
         </div>
       </div>
 
