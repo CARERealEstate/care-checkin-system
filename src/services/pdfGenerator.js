@@ -187,7 +187,7 @@ function page1_checkinForm(booking, form, formData) {
         <div class="field-row"><span class="field-label">Check In Time</span><span class="field-line">${formData.checkin_time || fmtTime(form.created_at)}</span></div>
       </div>
       <div class="ci-right">
-        <h3>TEMPORARY ACCOMMODATION<br><span class="red">NIGHTLY RATE: ${formData.nightly_rate || booking.nightly_rate || ''}</span></h3>
+        <h3>TEMPORARY ACCOMMODATION<br><span class="red">NIGHTLY RATE: &pound;${formData.nightly_rate || booking.nightly_rate || ''}</span></h3>
         <div class="field-row" style="margin-top:8px"><span class="field-label" style="min-width:70px">ADDRESS</span><span class="field-line">${booking.property_address||''}</span></div>
         <div style="height:24px;border-bottom:1px solid #999;margin:4px 0"></div>
         <div style="height:24px;border-bottom:1px solid #999;margin:4px 0"></div>
