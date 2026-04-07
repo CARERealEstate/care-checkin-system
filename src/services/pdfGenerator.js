@@ -406,13 +406,22 @@ function page5_consentForm(booking, form, formData) {
 
     <p class="consent-text" style="margin-top:10px"><strong><em>Your consent to share personal information is entirely voluntary and you may withdraw your consent at any time.</em></strong> Should you have any questions about this process, or wish to withdraw your consent please contact: <span class="red">0204 553 2233</span></p>
 
-    <div style="margin-top:14px">
+    <div style="margin-top:14px;">
       <div class="field-row"><span class="field-label">Placement Name</span><span class="field-line">${booking.tenant_first_name} ${booking.tenant_last_name}</span></div>
       <div class="field-row"><span class="field-label">Date of Birth</span><span class="field-line">${fmt(formData.date_of_birth)}</span></div>
-      <div class="field-row"><span class="field-label">Signature</span><span class="field-line">${renderSigText(form, formData, "tenant")}</span></div>
       <div class="field-row"><span class="field-label">Date</span><span class="field-line">${fmt(form.signed_at || form.created_at)}</span></div>
-      <div style="height:10px"></div>
-      <div class="field-row"><span class="field-label">Signature of CARE Agent</span><span class="field-line">${renderSigText(form, formData, "agent")}</span></div>
+    </div>
+
+    <div class="sig-row" style="margin-top:20px;">
+      <div class="sig-box">
+        <div class="sig-box-area" style="height:75px;">${form.tenant_signature ? '<img src="' + form.tenant_signature + '" style="max-height:70px;max-width:100%;">' : '<span style="font-size:16px;font-weight:800;text-transform:uppercase;letter-spacing:2px;">' + (booking.tenant_first_name + ' ' + booking.tenant_last_name).toUpperCase() + '</span>'}</div>
+        <div style="font-size:9px;font-weight:600;margin-top:6px;">SIGNED: PLACEMENT</div>
+      </div>
+      <div style="flex:0 0 3%;"></div>
+      <div class="sig-box">
+        <div class="sig-box-area" style="height:75px;">${renderSig(form, formData, "agent")}</div>
+        <div style="font-size:9px;font-weight:600;margin-top:6px;">SIGNED: CARE AGENT</div>
+      </div>
     </div>
 
     <div style="margin-top:24px;display:flex;justify-content:space-between;align-items:flex-end;font-size:8px;color:#666;border-top:1px solid #ddd;padding-top:8px">
