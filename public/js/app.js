@@ -367,6 +367,7 @@ async function loadRecords() {
           <span class="status-badge status-${statusClass}">${statusText}</span>
           <button class="btn btn-sm btn-outline" data-download-booking="${b.id}" title="View PDF"><i class="fas fa-file-pdf"></i></button>
           <button class="btn btn-sm btn-outline" data-view-detail="${b.id}" title="View Details"><i class="fas fa-eye"></i></button>
+          <button class="btn btn-sm btn-outline" data-delete-booking="${b.id}" title="Delete" style="color:#e74c3c;border-color:#e74c3c;"><i class="fas fa-trash"></i></button>
         </div>
       </div>`;
     }).join('');
@@ -396,6 +397,14 @@ async function loadRecords() {
       });
     });
 
+    // Bind delete buttons
+    container.querySelectorAll('[data-delete-booking]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteBooking(parseInt(btn.dataset.deleteBooking));
+      });
+    });
+
   } catch (err) {
     console.error('Load error:', err);
   }
@@ -415,6 +424,33 @@ async function downloadPDF(bookingId) {
   } catch (err) {
     showToast('Error downloading PDF: ' + err.message, 'error');
   }
+}
+
+// Delete a booking with confirmation
+async function deleteBooking(bookingId) {
+  var confirmed = confirm('Are you sure you want to delete this record? This will permanently remove all associated forms, evidence and data. This action cannot be undone.');
+  if (!confirmed) return;
+
+  try {
+    var res = await fetch('/api/bookings/' + bookingId, { method: 'DELETE' });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete');
+    showToast('Record deleted successfully', 'success');
+    if (currentViewBookingId === bookingId) {
+      currentViewBookingId = null;
+      navigateTo('dashboard');
+    }
+    loadBookings();
+  } catch (err) {
+    console.error('Delete error:', err);
+    showToast('Error deleting record: ' + err.message, 'error');
+  }
+}
+
+// Delete from the detail page
+function deleteCurrentRecord() {
+  if (!currentViewBookingId) { showToast('No record selected', 'error'); return; }
+  deleteBooking(currentViewBookingId);
 }
 
 // PDF generation - opens the check-in report in a new window for printing/saving as PDF
