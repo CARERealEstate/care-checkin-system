@@ -738,7 +738,8 @@ const councilCodes = {
   'horsham': 'HDC', 'horsham district council': 'HDC', 'hdc': 'HDC',
   'waverley': 'WBC2', 'waverley borough council': 'WBC2',
   'isle of wight': 'IOW', 'isle of wight council': 'IOW', 'iow': 'IOW',
-  'haringey': 'HRGY', 'haringey council': 'HRGY', 'london borough of haringey': 'HRGY', 'hrgy': 'HRGY'
+  'haringey': 'HRGY', 'haringey council': 'HRGY', 'london borough of haringey': 'HRGY', 'hrgy': 'HRGY',
+  'sevenoaks': 'SDC', 'sevenoaks district council': 'SDC', 'sevenoaks district': 'SDC', 'sdc': 'SDC'
 };
 
 function getCouncilCode(councilName) {
