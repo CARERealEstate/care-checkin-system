@@ -3,7 +3,7 @@
 
 let currentStep = 1;
 const totalSteps = 4;
-let tenantSigPad = null;
+let tenantSigPad = nul;
 let agentSigPad = null;
 let tenantSigMethod = 'draw'; // 'draw' or 'type'
 let agentSigMethod = 'draw';
@@ -730,7 +730,8 @@ async function saveRecordEdits() {
       });
     }
 
-    showToast('Record updated! Use Regenerate PDF to create an updated document.', 'success');
+    showToast('Changes saved! Generating updated PDF...', 'success');
+    await downloadPDF(currentViewBookingId);
   } catch (err) {
     showToast('Error saving changes: ' + err.message, 'error');
   }
