@@ -3,7 +3,7 @@
 
 let currentStep = 1;
 const totalSteps = 4;
-let tenantSigPad = nul;
+let tenantSigPad = null;
 let agentSigPad = null;
 let tenantSigMethod = 'draw'; // 'draw' or 'type'
 let agentSigMethod = 'draw';
