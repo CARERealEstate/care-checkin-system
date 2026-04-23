@@ -862,4 +862,4 @@ function bindEventListeners() {
   // Sign on behalf checkbox
   document.getElementById('sign-on-behalf')?.addEventListener('change', toggleSignOnBehalf);
 
-});
+}
