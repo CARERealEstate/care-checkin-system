@@ -800,94 +800,7 @@ const councilCodes = {
   'sevenoaks': 'SDC', 'sevenoaks district council': 'SDC', 'sevenoaks district': 'SDC', 'sdc': 'SDC'
 };
 
-function getCouncilCode(councilName) {
-  if (!councilName) return '';
-  const key = councilName.trim().toLowerCase();
-  if (councilCodes[key]) return councilCodes[key];
-  // Try partial match
-  for (const [name, code] of Object.entries(councilCodes)) {
-    if (key.includes(name) || name.includes(key)) return code;
-  }
-  // Fallback: take first letter of each word, uppercase
-  return councilName.trim().split(/\s+/).map(w => w[0]?.toUpperCase() || '').join('');
-}
 
-function abbreviateProperty(address) {
-  if (!address) return '';
-  // Remove postcode (e.g. PO1 3SH, SO14 2AA, GU12 4AB)
-  let cleaned = address.replace(/,?\s*[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\s*$/i, '').trim();
-  // Remove trailing comma
-  cleaned = cleaned.replace(/,\s*$/, '').trim();
-  // Remove trailing city/town names after last comma
-  const parts = cleaned.split(',');
-  // Keep stripping trailing parts that look like town/city names (no numbers)
-  while (parts.length > 1) {
-    const last = parts[parts.length - 1].trim();
-    if (!/\d/.test(last)) {
-      parts.pop();
-    } else {
-      break;
-    }
-  }
-  cleaned = parts.join(',').trim();
-
-  let prefix = '';
-  let rest = cleaned;
-
-  // Check for Flat prefix
-  const flatMatch = rest.match(/^(?:flat|flt)\s*(\d+[a-z]?)/i);
-  if (flatMatch) {
-    prefix = 'F' + flatMatch[1].toUpperCase();
-    rest = rest.substring(flatMatch[0].length).replace(/^[\s,]+/, '');
-  }
-  // Check for Unit prefix
-  const unitMatch = rest.match(/^(?:unit|room)\s*(\d+[a-z]?)/i);
-  if (!flatMatch && unitMatch) {
-    prefix = 'U' + unitMatch[1].toUpperCase();
-    rest = rest.substring(unitMatch[0].length).replace(/^[\s,]+/, '');
-  }
-
-  // Now parse remaining: expect "[number] [road name words]"
-  const numMatch = rest.match(/^(\d+[a-z]?)\s+(.+)/i);
-  if (numMatch) {
-    const num = numMatch[1].toUpperCase();
-    const roadWords = numMatch[2].replace(/,.*$/, '').trim().split(/\s+/);
-    const initials = roadWords.map(w => w[0]?.toUpperCase() || '').join('');
-    return prefix + num + initials;
-  }
-
-  // No street number â just take initials of remaining words (e.g. "Delme Court")
-  const words = rest.replace(/,.*$/, '').trim().split(/\s+/).filter(w => w.length > 0);
-  const initials = words.map(w => w[0]?.toUpperCase() || '').join('');
-  return prefix + initials;
-}
-
-function formatDateForRef(dateStr) {
-  if (!dateStr) return '';
-  // Input is YYYY-MM-DD from date input, output DDMMYYYY
-  const parts = dateStr.split('-');
-  if (parts.length !== 3) return '';
-  return parts[2] + parts[1] + parts[0];
-}
-
-function generateReference() {
-  const form = document.getElementById('checkin-form');
-  const council = form.querySelector('[name="council_name"]')?.value || '';
-  const address = form.querySelector('[name="property_address"]')?.value || '';
-  const checkinDate = form.querySelector('[name="checkin_date"]')?.value || '';
-
-  const code = getCouncilCode(council);
-  const prop = abbreviateProperty(address);
-  const dateRef = formatDateForRef(checkinDate);
-
-  const refField = form.querySelector('[name="reference_number"]');
-  if (refField && (code || prop || dateRef)) {
-    refField.value = code + prop + dateRef;
-    // Visual hint that it was auto-generated
-    refField.style.borderColor = 'var(--care-green)';
-    setTimeout(() => refField.style.borderColor = '', 2000);
-  }
-}
 
 // ===== Init & Event Binding =====
 document.addEventListener('DOMContentLoaded', () => {
@@ -949,14 +862,3 @@ function bindEventListeners() {
   // Sign on behalf checkbox
   document.getElementById('sign-on-behalf')?.addEventListener('change', toggleSignOnBehalf);
 
-  // Auto-generate reference number when council, address, or date change
-  const refTriggers = ['council_name', 'property_address', 'checkin_date'];
-  const form = document.getElementById('checkin-form');
-  refTriggers.forEach(name => {
-    const input = form?.querySelector(`[name="${name}"]`);
-    if (input) {
-      input.addEventListener('input', generateReference);
-      input.addEventListener('change', generateReference);
-    }
-  });
-}
