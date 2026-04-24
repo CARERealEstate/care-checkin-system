@@ -550,7 +550,7 @@ async function viewRecord(bookingId) {
 
     // Populate detail fields
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val || 'â'; };
+    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val || 'Ã¢ÂÂ'; };
 
     setVal('detail-first-name', b.tenant_first_name);
     setVal('detail-last-name', b.tenant_last_name);
@@ -579,7 +579,7 @@ async function viewRecord(bookingId) {
     setText('detail-status', statusText);
 
     // Consent info
-    setText('detail-dob', formData.date_of_birth || 'â');
+    setText('detail-dob', formData.date_of_birth || 'Ã¢ÂÂ');
     setText('detail-consent', formData.consent_agreed ? 'Yes' : 'No');
     setText('detail-excluded', formData.excluded_agencies || 'None');
 
@@ -652,7 +652,7 @@ async function viewRecord(bookingId) {
       invBody.innerHTML = formData.inventory.map(item => `<tr>
         <td>${item.name}</td>
         <td style="text-align:center"><i class="fas fa-${item.in ? 'check text-green' : 'times text-red'}"></i></td>
-        <td>${item.comments || 'â'}</td>
+        <td>${item.comments || 'Ã¢ÂÂ'}</td>
       </tr>`).join('');
     } else if (invBody) {
       invBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#999;">No inventory data</td></tr>';
@@ -802,6 +802,266 @@ const councilCodes = {
 
 
 
+// ===== CRM Integration =====
+let crmSearchTimeout = null;
+let crmLookupOpen = true;
+
+function toggleCRMLookup() {
+  crmLookupOpen = !crmLookupOpen;
+  const body = document.getElementById('crm-lookup-body');
+  const btn = document.getElementById('crm-toggle-btn');
+  if (crmLookupOpen) {
+    body.classList.remove('collapsed');
+    btn.classList.remove('collapsed');
+  } else {
+    body.classList.add('collapsed');
+    btn.classList.add('collapsed');
+  }
+}
+
+function showCRMStatus(message, type) {
+  const el = document.getElementById('crm-status');
+  el.textContent = message;
+  el.className = 'crm-status ' + type;
+  el.style.display = 'block';
+}
+
+function hideCRMStatus() {
+  document.getElementById('crm-status').style.display = 'none';
+}
+
+function clearCRMSearch() {
+  const input = document.getElementById('crm-search-input');
+  input.value = '';
+  document.getElementById('crm-search-clear').style.display = 'none';
+  document.getElementById('crm-results').style.display = 'none';
+  hideCRMStatus();
+}
+
+async function searchCRM(query) {
+  if (!query || query.length < 2) {
+    document.getElementById('crm-results').style.display = 'none';
+    hideCRMStatus();
+    return;
+  }
+
+  showCRMStatus('Searching CRM...', 'loading');
+  document.getElementById('crm-results').style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/crm/search?q=${encodeURIComponent(query)}`);
+    const data = await res.json();
+
+    if (data.results && data.results.length > 0) {
+      hideCRMStatus();
+      renderCRMResults(data.results, data.source);
+    } else {
+      showCRMStatus('No bookings found matching your search.', 'empty');
+      document.getElementById('crm-results').style.display = 'none';
+    }
+  } catch (err) {
+    showCRMStatus('Error searching CRM. Please try again.', 'error');
+    console.error('CRM search error:', err);
+  }
+}
+
+async function browseCRMBookings() {
+  showCRMStatus('Loading recent bookings...', 'loading');
+  document.getElementById('crm-results').style.display = 'none';
+
+  try {
+    const res = await fetch('/api/crm/bookings/recent?limit=30');
+    const data = await res.json();
+
+    if (data.bookings && data.bookings.length > 0) {
+      hideCRMStatus();
+      renderCRMResults(data.bookings, 'local_db');
+    } else {
+      showCRMStatus('No bookings in the system yet. Sync from CRM first using the sync button.', 'empty');
+    }
+  } catch (err) {
+    showCRMStatus('Error loading bookings. Please try again.', 'error');
+    console.error('CRM browse error:', err);
+  }
+}
+
+async function triggerCRMSync() {
+  const btn = document.getElementById('crm-sync-btn');
+  btn.classList.add('spinning');
+  btn.disabled = true;
+  showCRMStatus('Syncing from Sangam CRM... This may take a minute.', 'loading');
+
+  try {
+    const res = await fetch('/api/crm/sync', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.synced > 0) {
+      showCRMStatus(`Synced ${data.synced} bookings from CRM successfully!`, 'success');
+    } else if (data.message) {
+      showCRMStatus(`Sync issue: ${data.message}`, 'error');
+    } else {
+      showCRMStatus('Sync complete but no new bookings found.', 'empty');
+    }
+  } catch (err) {
+    showCRMStatus('Sync failed. Check CRM credentials in Railway settings.', 'error');
+  } finally {
+    btn.classList.remove('spinning');
+    btn.disabled = false;
+  }
+}
+
+function renderCRMResults(results, source) {
+  const container = document.getElementById('crm-results-list');
+  const wrapper = document.getElementById('crm-results');
+
+  if (!results || results.length === 0) {
+    container.innerHTML = '<div class="crm-no-results"><i class="fas fa-search"></i>No bookings found</div>';
+    wrapper.style.display = 'block';
+    return;
+  }
+
+  container.innerHTML = results.map((r, i) => {
+    const name = [r.first_name, r.last_name].filter(Boolean).join(' ') || 'Unnamed';
+    const ref = r.reference_number || 'No ref';
+    const addr = r.property_address || 'No address';
+    const council = r.council_name || '';
+    const date = r.placement_start || '';
+
+    return `
+      <div class="crm-result-item" onclick='selectCRMBooking(${JSON.stringify(r).replace(/'/g, "&#39;")})'>
+        <div class="crm-result-info">
+          <div class="crm-result-name">${escapeHtml(name)}</div>
+          <div class="crm-result-meta">
+            <span><i class="fas fa-hashtag"></i>${escapeHtml(ref)}</span>
+            ${council ? `<span><i class="fas fa-building"></i>${escapeHtml(council)}</span>` : ''}
+            ${addr ? `<span><i class="fas fa-map-marker-alt"></i>${escapeHtml(addr.substring(0, 40))}${addr.length > 40 ? '...' : ''}</span>` : ''}
+            ${date ? `<span><i class="fas fa-calendar"></i>${escapeHtml(date)}</span>` : ''}
+          </div>
+        </div>
+        <div class="crm-result-select"><i class="fas fa-arrow-right"></i> Select</div>
+      </div>
+    `;
+  }).join('');
+
+  wrapper.style.display = 'block';
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function selectCRMBooking(booking) {
+  const form = document.getElementById('checkin-form');
+  if (!form) return;
+
+  // Map CRM fields to form fields
+  const fieldMap = {
+    'tenant_first_name': booking.first_name || '',
+    'tenant_last_name': booking.last_name || '',
+    'tenant_phone': booking.phone || '',
+    'tenant_email': booking.email || '',
+    'property_address': booking.property_address || '',
+    'council_name': booking.council_name || '',
+    'housing_officer': booking.housing_officer || '',
+    'reference_number': booking.reference_number || '',
+    'unit_number': booking.unit_number || '',
+    'nok_name': booking.nok_name || '',
+    'nok_number': booking.nok_number || ''
+  };
+
+  // Fill each field
+  let filledCount = 0;
+  for (const [fieldName, value] of Object.entries(fieldMap)) {
+    if (!value) continue;
+    const input = form.querySelector(`[name="${fieldName}"]`);
+    if (input) {
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      // Highlight filled fields briefly
+      input.style.transition = 'background-color 0.3s';
+      input.style.backgroundColor = '#e8f5e9';
+      setTimeout(() => { input.style.backgroundColor = ''; }, 2000);
+      filledCount++;
+    }
+  }
+
+  // Handle date fields (need format conversion)
+  if (booking.placement_start) {
+    const dateInput = form.querySelector('[name="checkin_date"]');
+    if (dateInput) {
+      const parsed = parseCRMDate(booking.placement_start);
+      if (parsed) {
+        dateInput.value = parsed;
+        dateInput.style.transition = 'background-color 0.3s';
+        dateInput.style.backgroundColor = '#e8f5e9';
+        setTimeout(() => { dateInput.style.backgroundColor = ''; }, 2000);
+        filledCount++;
+      }
+    }
+  }
+
+  // Handle nightly rate in Step 2
+  if (booking.nightly_rate) {
+    const rateInput = form.querySelector('[name="nightly_rate"]');
+    if (rateInput) {
+      // Clean rate value - remove currency symbols
+      rateInput.value = booking.nightly_rate.replace(/[^\d.]/g, '');
+      rateInput.dispatchEvent(new Event('input', { bubbles: true }));
+      filledCount++;
+    }
+  }
+
+  // Show success
+  document.getElementById('crm-results').style.display = 'none';
+  hideCRMStatus();
+
+  const loadedBanner = document.getElementById('crm-loaded-banner');
+  const loadedText = document.getElementById('crm-loaded-text');
+  const name = [booking.first_name, booking.last_name].filter(Boolean).join(' ');
+  loadedText.textContent = `Loaded: ${name || 'CRM Booking'} â ${filledCount} fields filled`;
+  loadedBanner.style.display = 'flex';
+
+  showToast(`CRM data loaded! ${filledCount} fields auto-filled.`, 'success');
+}
+
+function parseCRMDate(dateStr) {
+  if (!dateStr) return null;
+  // Try ISO format first (YYYY-MM-DD)
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return dateStr.substring(0, 10);
+  // Try DD/MM/YYYY
+  const dmyMatch = dateStr.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (dmyMatch) return `${dmyMatch[3]}-${dmyMatch[2].padStart(2,'0')}-${dmyMatch[1].padStart(2,'0')}`;
+  // Try MM/DD/YYYY
+  const mdyMatch = dateStr.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (mdyMatch) return `${mdyMatch[3]}-${mdyMatch[1].padStart(2,'0')}-${mdyMatch[2].padStart(2,'0')}`;
+  // Try parsing with Date
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().substring(0, 10);
+    }
+  } catch(e) {}
+  return null;
+}
+
+function clearCRMData() {
+  const form = document.getElementById('checkin-form');
+  if (!form) return;
+  // Clear all Step 1 fields
+  const fields = ['tenant_first_name', 'tenant_last_name', 'tenant_phone', 'tenant_email',
+    'property_address', 'council_name', 'housing_officer', 'reference_number',
+    'unit_number', 'nok_name', 'nok_number', 'checkin_date', 'checkin_time'];
+  fields.forEach(name => {
+    const input = form.querySelector(`[name="${name}"]`);
+    if (input) input.value = '';
+  });
+
+  document.getElementById('crm-loaded-banner').style.display = 'none';
+  showToast('CRM data cleared from form.', 'info');
+}
+
+
 // ===== Init & Event Binding =====
 document.addEventListener('DOMContentLoaded', () => {
   loadRecords();
@@ -861,5 +1121,34 @@ function bindEventListeners() {
 
   // Sign on behalf checkbox
   document.getElementById('sign-on-behalf')?.addEventListener('change', toggleSignOnBehalf);
+
+  // CRM search input - debounced live search
+  const crmSearchInput = document.getElementById('crm-search-input');
+  const crmSearchClear = document.getElementById('crm-search-clear');
+  if (crmSearchInput) {
+    crmSearchInput.addEventListener('input', () => {
+      const val = crmSearchInput.value.trim();
+      crmSearchClear.style.display = val ? 'block' : 'none';
+      clearTimeout(crmSearchTimeout);
+      if (val.length >= 2) {
+        crmSearchTimeout = setTimeout(() => searchCRM(val), 400);
+      } else {
+        document.getElementById('crm-results').style.display = 'none';
+        hideCRMStatus();
+      }
+    });
+    crmSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') clearCRMSearch();
+    });
+  }
+
+  // CRM panel header click to toggle
+  const crmHeader = document.querySelector('.crm-lookup-header');
+  if (crmHeader) {
+    crmHeader.addEventListener('click', (e) => {
+      if (e.target.closest('.crm-toggle-btn')) return;
+      toggleCRMLookup();
+    });
+  }
 
 }
