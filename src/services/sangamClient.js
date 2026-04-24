@@ -4,23 +4,222 @@ const { db } = require('../db/database');
 const SANGAM_URL = process.env.SANGAM_URL || 'https://care.sangamcrm.com';
 const SANGAM_EMAIL = process.env.SANGAM_EMAIL || '';
 const SANGAM_PASSWORD = process.env.SANGAM_PASSWORD || '';
+const SANGAM_API_TOKEN = process.env.SANGAM_API_TOKEN || '';
 
 let browser = null;
-let sessionCookies = null;
-let cookieExpiry = 0;
+
+// ──────────────────────────────────────────────
+//  REST API Methods (Token-based)
+// ──────────────────────────────────────────────
 
 /**
- * Sangam CRM Scraper
- *
- * Sangam CRM (by Enjay IT Solutions) does NOT expose a standard REST API.
- * All data access is through session-authenticated web pages with CSRF tokens.
- * This module uses Puppeteer to:
- * 1. Login via the web form
- * 2. Navigate to the Placements list
- * 3. Extract basic data from the list view
- * 4. Visit each individual placement page for full details (address, council, dates)
- * 5. Upsert records into the local SQLite database
+ * Make an authenticated request to the Sangam CRM REST API.
+ * Sangam's API uses /api/v1/ with POST requests and token auth.
  */
+async function apiRequest(endpoint, body = {}) {
+  if (!SANGAM_API_TOKEN) {
+    logger.warn('SANGAM_API_TOKEN not configured');
+    return null;
+  }
+
+  const url = `${SANGAM_URL}/api/v1/${endpoint}`;
+  logger.info(`Sangam API request: ${url}`);
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Token ${SANGAM_API_TOKEN}`,
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000)
+    });
+
+    if (!response.ok) {
+      // Try Bearer format as fallback
+      if (response.status === 401 || response.status === 403) {
+        logger.info('Token auth failed, trying Bearer format...');
+        const retryResponse = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SANGAM_API_TOKEN}`,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(15000)
+        });
+        if (retryResponse.ok) {
+          return await retryResponse.json();
+        }
+      }
+      logger.error(`Sangam API error: ${response.status} ${response.statusText}`);
+      return null;
+    }
+
+    return await response.json();
+  } catch (err) {
+    logger.error(`Sangam API request failed: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Search CRM bookings/placements via the REST API.
+ * Tries multiple likely endpoint patterns for Sangam CRM.
+ */
+async function searchCRMBookings(query) {
+  if (!SANGAM_API_TOKEN) return null;
+
+  // Try different endpoint patterns that Sangam CRM might use
+  const endpoints = [
+    { path: 'leads/search', body: { search: query } },
+    { path: 'leads/list', body: { search: query, limit: 50 } },
+    { path: 'leads', body: { search: query, limit: 50 } },
+    { path: 'search', body: { module: 'Leads', query: query, limit: 50 } },
+    { path: 'records/search', body: { module: 'Leads', search_text: query } }
+  ];
+
+  for (const ep of endpoints) {
+    const result = await apiRequest(ep.path, ep.body);
+    if (result && (result.data || result.records || result.leads || result.results || Array.isArray(result))) {
+      const records = result.data || result.records || result.leads || result.results || result;
+      if (Array.isArray(records)) {
+        logger.info(`Sangam API search succeeded via ${ep.path}: ${records.length} results`);
+        return records;
+      }
+    }
+  }
+
+  logger.warn('Sangam API search: no working endpoint found');
+  return null;
+}
+
+/**
+ * Get a single CRM record by its reference number or ID.
+ */
+async function getCRMBookingByRef(ref) {
+  if (!SANGAM_API_TOKEN) return null;
+
+  const endpoints = [
+    { path: `leads/search`, body: { search: ref } },
+    { path: `leads/list`, body: { search: ref, limit: 5 } },
+    { path: `search`, body: { module: 'Leads', query: ref } }
+  ];
+
+  for (const ep of endpoints) {
+    const result = await apiRequest(ep.path, ep.body);
+    if (result && (result.data || result.records || result.leads || result.results || Array.isArray(result))) {
+      const records = result.data || result.records || result.leads || result.results || result;
+      if (Array.isArray(records) && records.length > 0) {
+        logger.info(`Sangam API ref lookup succeeded via ${ep.path}`);
+        return records[0];
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Normalize a Sangam CRM record into our standard booking format.
+ * Handles different field naming conventions from Sangam.
+ */
+function normalizeCRMRecord(record) {
+  if (!record) return null;
+
+  // Sangam CRM may use various field naming conventions
+  return {
+    sangam_id: record.uuid || record.id || record._id || '',
+    first_name: record.first_name || record.firstName || record.name?.split(' ')[0] || '',
+    last_name: record.last_name || record.lastName || record.name?.split(' ').slice(1).join(' ') || '',
+    email: extractField(record, ['email', 'email_address', 'emailAddress']),
+    phone: extractField(record, ['phone', 'mobile', 'telephone', 'phone_number', 'phoneNumber']),
+    property_address: extractField(record, ['property_address', 'propertyAddress', 'address', 'property', 'accommodation_address']),
+    council_name: extractField(record, ['council_name', 'councilName', 'council', 'local_authority', 'localAuthority', 'la_name']),
+    housing_officer: extractField(record, ['housing_officer', 'housingOfficer', 'officer']),
+    unit_number: extractField(record, ['unit_number', 'unitNumber', 'unit', 'room_number', 'roomNumber']),
+    nok_name: extractField(record, ['nok_name', 'nokName', 'next_of_kin', 'nextOfKin', 'nok']),
+    nok_number: extractField(record, ['nok_number', 'nokNumber', 'nok_phone', 'nokPhone']),
+    placement_start: extractField(record, ['placement_start', 'placementStart', 'start_date', 'startDate', 'check_in_date', 'checkinDate', 'move_in']),
+    placement_end: extractField(record, ['placement_end', 'placementEnd', 'end_date', 'endDate', 'check_out_date', 'checkoutDate', 'move_out']),
+    reference_number: extractField(record, ['reference_number', 'referenceNumber', 'reference', 'ref', 'placement_ref', 'booking_ref', 'file_reference']),
+    risk_profile: extractField(record, ['risk_profile', 'riskProfile', 'risk', 'risk_level']),
+    nightly_rate: extractField(record, ['nightly_rate', 'nightlyRate', 'rate', 'night_rate', 'per_night']),
+    assigned_to: extractField(record, ['assigned_to', 'assignedTo', 'owner', 'agent']),
+    raw_data: record
+  };
+}
+
+function extractField(record, fieldNames) {
+  for (const name of fieldNames) {
+    let val = record[name];
+    // Handle nested arrays (Sangam stores phone/email as arrays sometimes)
+    if (Array.isArray(val)) {
+      if (val.length > 0) {
+        val = val[0]?.phone_number || val[0]?.email_address || val[0]?.value || val[0];
+      } else {
+        continue;
+      }
+    }
+    if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== '-') {
+      return String(val).trim();
+    }
+  }
+  return '';
+}
+
+
+// ──────────────────────────────────────────────
+//  Local DB Search (for synced bookings)
+// ──────────────────────────────────────────────
+
+/**
+ * Search local bookings DB by name, ref, address, or council.
+ */
+function searchLocalBookings(query, limit = 20) {
+  const searchTerm = `%${query}%`;
+  return db.prepare(`
+    SELECT * FROM bookings
+    WHERE tenant_first_name LIKE @q
+       OR tenant_last_name LIKE @q
+       OR reference_number LIKE @q
+       OR property_address LIKE @q
+       OR council_name LIKE @q
+       OR sangam_id LIKE @q
+    ORDER BY updated_at DESC
+    LIMIT @limit
+  `).all({ q: searchTerm, limit });
+}
+
+/**
+ * Get recent bookings from local DB.
+ */
+function getRecentBookings(limit = 30) {
+  return db.prepare(`
+    SELECT * FROM bookings
+    ORDER BY updated_at DESC
+    LIMIT @limit
+  `).all({ limit });
+}
+
+/**
+ * Get a single local booking by reference number.
+ */
+function getLocalBookingByRef(ref) {
+  return db.prepare(`
+    SELECT * FROM bookings
+    WHERE reference_number = @ref
+    LIMIT 1
+  `).get({ ref });
+}
+
+
+// ──────────────────────────────────────────────
+//  Puppeteer Scraper (for bulk sync)
+// ──────────────────────────────────────────────
 
 async function getPuppeteer() {
   try {
@@ -129,10 +328,6 @@ async function loginAndGetPage() {
   }
 }
 
-/**
- * Scrape an individual placement detail page for full CRM data.
- * Visits /leads/{uuid} and extracts all available fields from the detail view.
- */
 async function scrapeDetailPage(page, uuid) {
   try {
     await page.goto(`${SANGAM_URL}/leads/${uuid}`, { waitUntil: 'networkidle2', timeout: 25000 });
@@ -141,14 +336,12 @@ async function scrapeDetailPage(page, uuid) {
     const details = await page.evaluate(() => {
       const data = {};
 
-      // Helper: find a label element and return the adjacent value
       function findFieldValue(labelTexts) {
         const allLabels = document.querySelectorAll('label, .field-label, th, dt, .label, span.key, div.label');
         for (const label of allLabels) {
           const text = label.textContent.trim().toLowerCase().replace(/[:\s]+$/, '');
           for (const target of labelTexts) {
             if (text === target.toLowerCase() || text.includes(target.toLowerCase())) {
-              // Try sibling, next element, parent's next child, or dd element
               const candidates = [
                 label.nextElementSibling,
                 label.parentElement && label.parentElement.nextElementSibling,
@@ -169,7 +362,6 @@ async function scrapeDetailPage(page, uuid) {
         return '';
       }
 
-      // Also try to extract from input/textarea fields with specific names or ids
       function findInputValue(namePatterns) {
         for (const pattern of namePatterns) {
           const el = document.querySelector(
@@ -184,60 +376,37 @@ async function scrapeDetailPage(page, uuid) {
         return '';
       }
 
-      // Extract property address
       data.property_address = findFieldValue(['property address', 'address', 'property', 'accommodation address', 'unit address'])
         || findInputValue(['address', 'property_address', 'property']);
-
-      // Extract council name
       data.council_name = findFieldValue(['council', 'council name', 'local authority', 'referring council', 'la name'])
         || findInputValue(['council', 'council_name', 'local_authority']);
-
-      // Extract placement start date
       data.placement_start = findFieldValue(['placement start', 'start date', 'check-in date', 'check in date', 'move in', 'move-in date', 'placement date'])
         || findInputValue(['placement_start', 'start_date', 'checkin_date', 'move_in']);
-
-      // Extract placement end date
       data.placement_end = findFieldValue(['placement end', 'end date', 'check-out date', 'check out date', 'move out', 'move-out date', 'expected end'])
         || findInputValue(['placement_end', 'end_date', 'checkout_date', 'move_out']);
-
-      // Extract reference number (backup from detail page)
       data.reference_number = findFieldValue(['reference', 'ref', 'reference number', 'placement ref', 'booking ref'])
         || findInputValue(['reference', 'ref_number', 'reference_number']);
-
-      // Extract risk profile
       data.risk_profile = findFieldValue(['risk', 'risk profile', 'risk level', 'risk assessment'])
         || findInputValue(['risk', 'risk_profile']);
-
-      // Extract nightly rate
       data.nightly_rate = findFieldValue(['nightly rate', 'rate', 'night rate', 'per night', 'nightly'])
         || findInputValue(['nightly_rate', 'rate', 'night_rate']);
-
-      // Extract phone (backup)
       data.phone = findFieldValue(['phone', 'mobile', 'telephone', 'contact number'])
         || findInputValue(['phone', 'mobile', 'telephone']);
-
-      // Extract email (backup)
       data.email = findFieldValue(['email', 'email address', 'e-mail'])
         || findInputValue(['email', 'email_address']);
-
-      // Extract first/last name from detail page (backup)
       data.first_name = findFieldValue(['first name', 'given name', 'forename'])
         || findInputValue(['first_name', 'firstname']);
       data.last_name = findFieldValue(['last name', 'surname', 'family name'])
         || findInputValue(['last_name', 'lastname', 'surname']);
 
-      // Try extracting from page title or header as fallback for name
       const pageTitle = document.querySelector('h1, h2, .page-title, .lead-name, .record-title');
       if (pageTitle && !data.first_name) {
         const titleText = pageTitle.textContent.trim();
-        // If title looks like a name (2+ words, no special chars)
         if (titleText && /^[A-Za-z\s\-']+$/.test(titleText) && titleText.includes(' ')) {
-          const parts = titleText.split(/\s+/);
           data.detail_page_name = titleText;
         }
       }
 
-      // Also try to get data from any visible detail panels/cards
       const detailPanels = document.querySelectorAll('.detail-panel, .info-card, .record-detail, .field-row, .form-group');
       detailPanels.forEach(panel => {
         const text = panel.textContent.toLowerCase();
@@ -246,18 +415,10 @@ async function scrapeDetailPage(page, uuid) {
         const val = (valueEl.value || valueEl.textContent || '').trim();
         if (!val || val === '-' || val === 'N/A') return;
 
-        if ((text.includes('address') || text.includes('property')) && !data.property_address) {
-          data.property_address = val;
-        }
-        if ((text.includes('council') || text.includes('authority')) && !data.council_name) {
-          data.council_name = val;
-        }
-        if (text.includes('start') && text.includes('date') && !data.placement_start) {
-          data.placement_start = val;
-        }
-        if (text.includes('end') && text.includes('date') && !data.placement_end) {
-          data.placement_end = val;
-        }
+        if ((text.includes('address') || text.includes('property')) && !data.property_address) data.property_address = val;
+        if ((text.includes('council') || text.includes('authority')) && !data.council_name) data.council_name = val;
+        if (text.includes('start') && text.includes('date') && !data.placement_start) data.placement_start = val;
+        if (text.includes('end') && text.includes('date') && !data.placement_end) data.placement_end = val;
       });
 
       return data;
@@ -265,9 +426,7 @@ async function scrapeDetailPage(page, uuid) {
 
     logger.info(`Detail page scraped for ${uuid}`, {
       hasAddress: !!details.property_address,
-      hasCouncil: !!details.council_name,
-      hasStart: !!details.placement_start,
-      hasEnd: !!details.placement_end
+      hasCouncil: !!details.council_name
     });
 
     return details;
@@ -288,39 +447,26 @@ async function scrapePlacements(page) {
 
     await new Promise(r => setTimeout(r, 2000));
 
-    // Try to show more entries using page.evaluate (Puppeteer compatible)
     const clicked100 = await page.evaluate(() => {
       const links = document.querySelectorAll('a');
       for (const link of links) {
-        if (link.textContent.trim() === '100') {
-          link.click();
-          return true;
-        }
+        if (link.textContent.trim() === '100') { link.click(); return true; }
       }
       const select = document.querySelector('select[name*="length"], .dataTables_length select');
-      if (select) {
-        select.value = '100';
-        select.dispatchEvent(new Event('change'));
-        return true;
-      }
+      if (select) { select.value = '100'; select.dispatchEvent(new Event('change')); return true; }
       return false;
     });
 
-    if (clicked100) {
-      await new Promise(r => setTimeout(r, 3000));
-    }
+    if (clicked100) await new Promise(r => setTimeout(r, 3000));
 
     const placements = await page.evaluate(() => {
       const rows = document.querySelectorAll('table tbody tr');
       const results = [];
-
       rows.forEach(row => {
         const link = row.querySelector('a[href*="/leads/"]');
         if (!link) return;
-
         const cells = row.querySelectorAll('td');
         if (cells.length < 10) return;
-
         const uuid = link.href.split('/leads/')[1];
 
         let phone = '';
@@ -329,10 +475,8 @@ async function scrapePlacements(page) {
           if (phoneCell && phoneCell.startsWith('[')) {
             const phoneData = JSON.parse(phoneCell);
             if (phoneData[0]?.phone_number) phone = phoneData[0].phone_number;
-          } else {
-            phone = phoneCell || '';
-          }
-        } catch(e) { /* ignore */ }
+          } else { phone = phoneCell || ''; }
+        } catch(e) {}
 
         let email = '';
         try {
@@ -340,125 +484,27 @@ async function scrapePlacements(page) {
           if (emailCell && emailCell.startsWith('[')) {
             const emailData = JSON.parse(emailCell);
             if (emailData[0]?.email_address) email = emailData[0].email_address;
-          } else {
-            email = emailCell || '';
-          }
-        } catch(e) { /* ignore */ }
+          } else { email = emailCell || ''; }
+        } catch(e) {}
 
         results.push({
-          sangam_id: uuid,
-          first_name: cells[3]?.textContent.trim() || '',
-          last_name: cells[4]?.textContent.trim() || '',
-          risk_profile: cells[5]?.textContent.trim() || '',
-          reference_number: cells[10]?.textContent.trim() || '',
-          phone: phone,
-          email: email,
-          nightly_rate: cells[14]?.textContent.trim() || '',
-          created_at: cells[15]?.textContent.trim() || '',
-          updated_at: cells[16]?.textContent.trim() || '',
-          assigned_to: cells[18]?.textContent.trim() || ''
+          sangam_id: uuid, first_name: cells[3]?.textContent.trim() || '',
+          last_name: cells[4]?.textContent.trim() || '', risk_profile: cells[5]?.textContent.trim() || '',
+          reference_number: cells[10]?.textContent.trim() || '', phone, email,
+          nightly_rate: cells[14]?.textContent.trim() || '', created_at: cells[15]?.textContent.trim() || '',
+          updated_at: cells[16]?.textContent.trim() || '', assigned_to: cells[18]?.textContent.trim() || ''
         });
       });
-
       return results;
     });
 
-    // Check for pagination using page.evaluate (Puppeteer compatible)
-    const hasNextPage = await page.evaluate(() => {
-      const links = document.querySelectorAll('a');
-      for (const link of links) {
-        const text = link.textContent.trim();
-        if (text === 'Next' || text === 'Next \u00bb' || text === '\u203a' || text === '\u00bb') {
-          const isDisabled = link.classList.contains('disabled') ||
-            link.parentElement.classList.contains('disabled') ||
-            link.getAttribute('aria-disabled') === 'true';
-          if (!isDisabled) {
-            link.click();
-            return true;
-          }
-        }
-      }
-      return false;
-    });
-
-    if (hasNextPage) {
-      await new Promise(r => setTimeout(r, 3000));
-
-      await page.waitForFunction(() => {
-        const links = document.querySelectorAll('table tbody a[href*="/leads/"]');
-        return links.length > 0;
-      }, { timeout: 10000 });
-
-      const page2 = await page.evaluate(() => {
-        const rows = document.querySelectorAll('table tbody tr');
-        const results = [];
-
-        rows.forEach(row => {
-          const link = row.querySelector('a[href*="/leads/"]');
-          if (!link) return;
-
-          const cells = row.querySelectorAll('td');
-          if (cells.length < 10) return;
-
-          const uuid = link.href.split('/leads/')[1];
-
-          let phone = '';
-          try {
-            const phoneCell = cells[11]?.textContent.trim();
-            if (phoneCell && phoneCell.startsWith('[')) {
-              const phoneData = JSON.parse(phoneCell);
-              if (phoneData[0]?.phone_number) phone = phoneData[0].phone_number;
-            } else {
-              phone = phoneCell || '';
-            }
-          } catch(e) {}
-
-          let email = '';
-          try {
-            const emailCell = cells[13]?.textContent.trim();
-            if (emailCell && emailCell.startsWith('[')) {
-              const emailData = JSON.parse(emailCell);
-              if (emailData[0]?.email_address) email = emailData[0].email_address;
-            } else {
-              email = emailCell || '';
-            }
-          } catch(e) {}
-
-          results.push({
-            sangam_id: uuid,
-            first_name: cells[3]?.textContent.trim() || '',
-            last_name: cells[4]?.textContent.trim() || '',
-            risk_profile: cells[5]?.textContent.trim() || '',
-            reference_number: cells[10]?.textContent.trim() || '',
-            phone,
-            email,
-            nightly_rate: cells[14]?.textContent.trim() || '',
-            created_at: cells[15]?.textContent.trim() || '',
-            updated_at: cells[16]?.textContent.trim() || '',
-            assigned_to: cells[18]?.textContent.trim() || ''
-          });
-        });
-
-        return results;
-      });
-
-      placements.push(...page2);
-    }
-
-    logger.info(`Scraped ${placements.length} placements from CRM list view`);
-
-    // Now visit each individual placement page to get full details
+    // Scrape detail pages
     logger.info('Starting individual placement detail scraping...');
     let detailCount = 0;
-    let detailErrors = 0;
-
     for (const placement of placements) {
       if (!placement.sangam_id) continue;
-
       try {
         const details = await scrapeDetailPage(page, placement.sangam_id);
-
-        // Merge detail page data into placement (detail page values override empty list values)
         if (details.property_address) placement.property_address = details.property_address;
         if (details.council_name) placement.council_name = details.council_name;
         if (details.placement_start) placement.placement_start = details.placement_start;
@@ -470,16 +516,13 @@ async function scrapePlacements(page) {
         if (details.email && !placement.email) placement.email = details.email;
         if (details.first_name && !placement.first_name) placement.first_name = details.first_name;
         if (details.last_name && !placement.last_name) placement.last_name = details.last_name;
-
         detailCount++;
       } catch (err) {
         logger.error(`Error scraping detail for ${placement.sangam_id}`, { error: err.message });
-        detailErrors++;
       }
     }
 
-    logger.info(`Detail scraping complete: ${detailCount} succeeded, ${detailErrors} failed`);
-    logger.info(`Scraped ${placements.length} placements total from CRM`);
+    logger.info(`Scraped ${placements.length} placements total (${detailCount} detail pages)`);
     return placements;
   } catch (err) {
     logger.error('Failed to scrape placements', { error: err.message });
@@ -518,24 +561,15 @@ function processEntries(entries) {
   for (const record of entries) {
     try {
       if (!record.sangam_id) continue;
-
       const mapped = {
-        sangam_id: record.sangam_id,
-        first_name: record.first_name || '',
-        last_name: record.last_name || '',
-        email: record.email || '',
-        phone: record.phone || '',
-        property_address: record.property_address || '',
-        council_name: record.council_name || '',
-        placement_start: record.placement_start || record.created_at || '',
-        placement_end: record.placement_end || '',
-        reference_number: record.reference_number || '',
-        risk_profile: record.risk_profile || '',
-        nightly_rate: record.nightly_rate || '',
-        assigned_to: record.assigned_to || '',
-        raw_data: JSON.stringify(record)
+        sangam_id: record.sangam_id, first_name: record.first_name || '',
+        last_name: record.last_name || '', email: record.email || '',
+        phone: record.phone || '', property_address: record.property_address || '',
+        council_name: record.council_name || '', placement_start: record.placement_start || record.created_at || '',
+        placement_end: record.placement_end || '', reference_number: record.reference_number || '',
+        risk_profile: record.risk_profile || '', nightly_rate: record.nightly_rate || '',
+        assigned_to: record.assigned_to || '', raw_data: JSON.stringify(record)
       };
-
       upsert.run(mapped);
     } catch (err) {
       logger.error('Error processing CRM record', { error: err.message, record: record.sangam_id });
@@ -545,7 +579,7 @@ function processEntries(entries) {
 
 async function syncFromCRM() {
   if (!SANGAM_EMAIL || !SANGAM_PASSWORD) {
-    logger.warn('Sangam CRM credentials not set (SANGAM_EMAIL / SANGAM_PASSWORD), skipping sync');
+    logger.warn('Sangam CRM credentials not set, skipping sync');
     return { synced: 0, errors: 0 };
   }
 
@@ -555,9 +589,7 @@ async function syncFromCRM() {
 
   try {
     page = await loginAndGetPage();
-    if (!page) {
-      return { synced: 0, errors: 1, message: 'Login failed' };
-    }
+    if (!page) return { synced: 0, errors: 1, message: 'Login failed' };
 
     const placements = await scrapePlacements(page);
     if (placements.length > 0) {
@@ -578,9 +610,7 @@ async function syncFromCRM() {
 }
 
 async function getModuleList() {
-  return {
-    modules: ['Placements', 'Bookings', 'Properties', 'Councils', 'Maintenance Jobs', 'Landlords/Agents']
-  };
+  return { modules: ['Placements', 'Bookings', 'Properties', 'Councils', 'Maintenance Jobs', 'Landlords/Agents'] };
 }
 
 async function getFieldList(moduleName) {
@@ -590,4 +620,15 @@ async function getFieldList(moduleName) {
   };
 }
 
-module.exports = { syncFromCRM, getModuleList, getFieldList, processEntries };
+module.exports = {
+  syncFromCRM,
+  getModuleList,
+  getFieldList,
+  processEntries,
+  searchCRMBookings,
+  getCRMBookingByRef,
+  normalizeCRMRecord,
+  searchLocalBookings,
+  getRecentBookings,
+  getLocalBookingByRef
+};
