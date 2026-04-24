@@ -12,7 +12,7 @@
  */
 
 const SANGAM_API_TOKEN = process.env.SANGAM_API_TOKEN || process.env.SANGAM_API_KEY || '';
-const SANGAM_API_URL = (process.env.SANGAM_API_URL || 'https://care.sangamcrm.com').replace(/\/+$/, '');
+const SANGAM_API_URL = (process.env.SANGAM_API_URL || 'https://care.sangamcrm.com').replace(/\/+$/, '').replace(/\/api\/v1\/?$/, '');
 
 /**
  * Make an API request to Sangam CRM
