@@ -1142,6 +1142,13 @@ function bindEventListeners() {
     });
   }
 
+  // CRM clear search button
+  if (crmSearchClear) {
+    crmSearchClear.addEventListener('click', () => {
+      clearCRMSearch();
+    });
+  }
+
   // CRM panel header click to toggle
   const crmHeader = document.querySelector('.crm-lookup-header');
   if (crmHeader) {
