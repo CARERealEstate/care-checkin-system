@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CARE Real Estate â Check-In System</title>
+  <title>CARE Real Estate – Check-In System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -54,6 +54,48 @@
       <form id="checkin-form" onsubmit="return false;">
         <!-- Step 1: Placement & Property -->
         <div class="form-step active" data-step="1">
+          <!-- CRM Lookup Panel -->
+          <div id="crm-lookup-panel" class="crm-lookup-panel">
+            <div class="crm-lookup-header">
+              <div class="crm-lookup-title">
+                <i class="fas fa-cloud-download-alt"></i>
+                <span>Load from Sangam CRM</span>
+              </div>
+              <button type="button" class="crm-toggle-btn" id="crm-toggle-btn" onclick="toggleCRMLookup()">
+                <i class="fas fa-chevron-down"></i>
+              </button>
+            </div>
+            <div class="crm-lookup-body" id="crm-lookup-body">
+              <p class="crm-hint">Search by name, reference, address or council — or browse recent bookings. Selecting a booking will auto-fill the form fields below.</p>
+              <div class="crm-search-row">
+                <div class="crm-search-input-wrap">
+                  <i class="fas fa-search crm-search-icon"></i>
+                  <input type="text" id="crm-search-input" placeholder="Search CRM bookings..." autocomplete="off">
+                  <button type="button" class="crm-search-clear" id="crm-search-clear" onclick="clearCRMSearch()" style="display:none;">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                <button type="button" class="btn btn-outline crm-browse-btn" id="crm-browse-btn" onclick="browseCRMBookings()">
+                  <i class="fas fa-list"></i> Browse Recent
+                </button>
+                <button type="button" class="btn btn-outline crm-sync-btn" id="crm-sync-btn" onclick="triggerCRMSync()" title="Sync latest data from CRM">
+                  <i class="fas fa-sync-alt"></i>
+                </button>
+              </div>
+              <div id="crm-results" class="crm-results" style="display:none;">
+                <div id="crm-results-list" class="crm-results-list"></div>
+              </div>
+              <div id="crm-status" class="crm-status" style="display:none;"></div>
+              <div id="crm-loaded-banner" class="crm-loaded-banner" style="display:none;">
+                <i class="fas fa-check-circle"></i>
+                <span id="crm-loaded-text">Loaded from CRM</span>
+                <button type="button" class="crm-clear-btn" onclick="clearCRMData()">
+                  <i class="fas fa-times"></i> Clear
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="step-title"><span class="step-num">1</span> Placement & Property Details</div>
           <div class="form-grid">
             <div class="form-group">
@@ -154,7 +196,7 @@
             </div>
             <div class="form-group">
               <label>Nightly Rate</label>
-              <input type="text" name="nightly_rate" placeholder="e.g. Â£65.00">
+              <input type="text" name="nightly_rate" placeholder="e.g. £65.00">
             </div>
             <div class="form-group">
               <label>Pet Deposit Required</label>
@@ -416,15 +458,15 @@
         <div class="form-grid">
           <div class="form-group">
             <label>Date of Birth</label>
-            <span id="detail-dob" style="padding:8px 0;display:block;">â</span>
+            <span id="detail-dob" style="padding:8px 0;display:block;">—</span>
           </div>
           <div class="form-group">
             <label>Consent Given</label>
-            <span id="detail-consent" style="padding:8px 0;display:block;">â</span>
+            <span id="detail-consent" style="padding:8px 0;display:block;">—</span>
           </div>
           <div class="form-group full-width">
             <label>Excluded Agencies</label>
-            <span id="detail-excluded" style="padding:8px 0;display:block;">â</span>
+            <span id="detail-excluded" style="padding:8px 0;display:block;">—</span>
           </div>
         </div>
       </div>
@@ -437,7 +479,7 @@
             <img id="detail-tenant-sig" style="max-width:300px;border:1px solid #ddd;border-radius:8px;" alt="Placement signature">
           </div>
           <div>
-            <label style="font-weight:600;margin-bottom:8px;display:block;">Agent: <span id="detail-agent-name">â</span></label>
+            <label style="font-weight:600;margin-bottom:8px;display:block;">Agent: <span id="detail-agent-name">—</span></label>
             <img id="detail-agent-sig" style="max-width:300px;border:1px solid #ddd;border-radius:8px;" alt="Agent signature">
           </div>
         </div>
