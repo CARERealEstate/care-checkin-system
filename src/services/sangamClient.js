@@ -60,9 +60,26 @@ async function login() {
     console.log('Sangam CRM login response status:', response.status);
 
     if (response.ok && data) {
+      console.log('Sangam CRM login response keys:', Object.keys(data).join(', '));
+
       // Try to extract session ID from various response formats
-      const sid = data.session_id || data.sessionId || data.id || data.token || data.access_token || data.session;
-      if (sid) {
+      // Sangam CRM returns {"status":200,"data":"session_id"} format
+      let sid = data.session_id || data.sessionId || data.id || data.token || data.access_token || data.session;
+
+      // Check data.data - Sangam CRM wraps session in {status, data} format
+      if (!sid && data.data) {
+        if (typeof data.data === 'string') {
+          sid = data.data;
+        } else if (typeof data.data === 'object') {
+          sid = data.data.session_id || data.data.sessionId || data.data.id || data.data.token || data.data.session;
+          if (!sid) {
+            // If data.data is an object, stringify it as session
+            sid = JSON.stringify(data.data);
+          }
+        }
+      }
+
+      if (sid && typeof sid === 'string' && !sid.startsWith('{')) {
         sessionId = sid;
         sessionExpiry = Date.now() + 3600000; // Cache for 1 hour
         console.log('Sangam CRM: Login successful, session obtained');
@@ -76,9 +93,9 @@ async function login() {
         return sessionId;
       }
 
-      console.log('Sangam CRM: Login response has no session ID. Response keys:', Object.keys(data).join(', '));
-      // Store the whole response for debugging
-      sessionId = JSON.stringify(data);
+      console.log('Sangam CRM: Login response structure:', JSON.stringify(data).substring(0, 200));
+      // Store whatever we have as session - it might work
+      sessionId = sid || JSON.stringify(data);
       sessionExpiry = Date.now() + 3600000;
       return sessionId;
     }
