@@ -1,9 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const {
-  syncFromCRM, getModuleList, getFieldList,
-  searchCRMBookings, getCRMBookingByRef, normalizeCRMRecord,
-  searchLocalBookings, getRecentBookings, getLocalBookingByRef
+  syncFromCRM,
+  getModuleList,
+  getFieldList,
+  searchCRMBookings,
+  getCRMBookingByRef,
+  normalizeCRMRecord,
+  searchLocalBookings,
+  getRecentBookings,
+  getLocalBookingByRef,
+  testAPIEndpoints
 } = require('../services/sangamClient');
 const logger = require('../services/logger');
 
@@ -20,9 +27,14 @@ router.get('/search', async (req, res) => {
 
     // Try Sangam REST API first
     let apiResults = await searchCRMBookings(query);
+
     if (apiResults && apiResults.length > 0) {
       const normalized = apiResults.map(normalizeCRMRecord).filter(r => r);
-      return res.json({ results: normalized, source: 'sangam_api', count: normalized.length });
+      return res.json({
+        results: normalized,
+        source: 'sangam_api',
+        count: normalized.length
+      });
     }
 
     // Fall back to local DB
@@ -47,7 +59,11 @@ router.get('/search', async (req, res) => {
       assigned_to: b.assigned_to || ''
     }));
 
-    res.json({ results: mapped, source: 'local_db', count: mapped.length });
+    res.json({
+      results: mapped,
+      source: 'local_db',
+      count: mapped.length
+    });
   } catch (err) {
     logger.error('CRM search error', { error: err.message });
     res.status(500).json({ error: err.message });
@@ -60,7 +76,6 @@ router.get('/bookings/recent', async (req, res) => {
   try {
     const limit = Number(req.query.limit) || 30;
     const bookings = getRecentBookings(limit);
-
     const mapped = bookings.map(b => ({
       id: b.id,
       sangam_id: b.sangam_id || '',
@@ -84,7 +99,10 @@ router.get('/bookings/recent', async (req, res) => {
       updated_at: b.updated_at || ''
     }));
 
-    res.json({ bookings: mapped, count: mapped.length });
+    res.json({
+      bookings: mapped,
+      count: mapped.length
+    });
   } catch (err) {
     logger.error('Error fetching recent CRM bookings', { error: err.message });
     res.status(500).json({ error: err.message });
@@ -102,7 +120,10 @@ router.get('/bookings/:ref', async (req, res) => {
     const apiResult = await getCRMBookingByRef(ref);
     if (apiResult) {
       const normalized = normalizeCRMRecord(apiResult);
-      return res.json({ booking: normalized, source: 'sangam_api' });
+      return res.json({
+        booking: normalized,
+        source: 'sangam_api'
+      });
     }
 
     // Fall back to local DB
@@ -157,6 +178,19 @@ router.get('/status', async (req, res) => {
       'Local DB Search'
     ]
   });
+});
+
+// GET /api/crm/test-api
+// Diagnostic: Test all possible API endpoints to find the right one
+router.get('/test-api', async (req, res) => {
+  try {
+    logger.info('Running Sangam CRM API diagnostics...');
+    const results = await testAPIEndpoints();
+    res.json(results);
+  } catch (err) {
+    logger.error('API test failed', { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST /api/crm/sync - Manual CRM sync trigger
