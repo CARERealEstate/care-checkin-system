@@ -163,7 +163,7 @@ router.get('/bookings/:ref', async (req, res) => {
 // GET /api/crm/status
 // Check CRM connection status
 router.get('/status', async (req, res) => {
-  const hasApiToken = !!(process.env.SANGAM_API_TOKEN);
+  const hasApiToken = !!((process.env.SANGAM_API_TOKEN || process.env.SANGAM_API_KEY));
   const hasCredentials = !!(process.env.SANGAM_EMAIL && process.env.SANGAM_PASSWORD);
   const sangamUrl = process.env.SANGAM_URL || 'https://care.sangamcrm.com';
 
