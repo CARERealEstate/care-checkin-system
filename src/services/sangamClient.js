@@ -4,7 +4,7 @@ const { db } = require('../db/database');
 const SANGAM_URL = process.env.SANGAM_URL || 'https://care.sangamcrm.com';
 const SANGAM_EMAIL = process.env.SANGAM_EMAIL || '';
 const SANGAM_PASSWORD = process.env.SANGAM_PASSWORD || '';
-const SANGAM_API_TOKEN = process.env.SANGAM_API_TOKEN || '';
+const SANGAM_API_TOKEN = process.env.SANGAM_API_TOKEN || process.env.SANGAM_API_KEY || '';
 
 let browser = null;
 
