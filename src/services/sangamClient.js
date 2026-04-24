@@ -29,6 +29,7 @@ async function apiRequest(endpoint, bodyParams = {}, options = {}) {
   // Include authorization in both header AND body for maximum compatibility
   const body = {
     authorization: `Bearer ${SANGAM_API_TOKEN}`,
+    token: SANGAM_API_TOKEN,
     ...bodyParams
   };
 
@@ -41,7 +42,8 @@ async function apiRequest(endpoint, bodyParams = {}, options = {}) {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Authorization': `Bearer ${SANGAM_API_TOKEN}`
+        'Authorization': `Bearer ${SANGAM_API_TOKEN}`,
+        'Token': SANGAM_API_TOKEN
       },
       body: JSON.stringify(body),
       signal: controller.signal
@@ -337,6 +339,7 @@ async function testEndpoint(endpoint, body) {
   const url = `${SANGAM_API_URL}/api/v1/${endpoint}`;
   const requestBody = {
     authorization: `Bearer ${SANGAM_API_TOKEN}`,
+    token: SANGAM_API_TOKEN,
     ...body
   };
 
@@ -347,7 +350,8 @@ async function testEndpoint(endpoint, body) {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Authorization': `Bearer ${SANGAM_API_TOKEN}`
+        'Authorization': `Bearer ${SANGAM_API_TOKEN}`,
+        'Token': SANGAM_API_TOKEN
       },
       body: JSON.stringify(requestBody)
     });
