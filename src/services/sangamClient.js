@@ -8,9 +8,9 @@ const SANGAM_API_TOKEN = process.env.SANGAM_API_TOKEN || '';
 
 let browser = null;
 
-// ──────────────────────────────────────────────
-//  REST API Methods (Token-based)
-// ──────────────────────────────────────────────
+// ââââââââââââââââââââââââââââââââââââââââââââââ
+// REST API Methods (Token-based)
+// ââââââââââââââââââââââââââââââââââââââââââââââ
 
 /**
  * Make an authenticated request to the Sangam CRM REST API.
@@ -23,71 +23,96 @@ async function apiRequest(endpoint, body = {}) {
   }
 
   const url = `${SANGAM_URL}/api/v1/${endpoint}`;
-  logger.info(`Sangam API request: ${url}`);
+  logger.info(`Sangam API request: ${url}`, { body: JSON.stringify(body) });
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Token ${SANGAM_API_TOKEN}`,
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15000)
-    });
+  // Try multiple auth header formats
+  const authFormats = [
+    `Token ${SANGAM_API_TOKEN}`,
+    `Bearer ${SANGAM_API_TOKEN}`,
+    SANGAM_API_TOKEN
+  ];
 
-    if (!response.ok) {
-      // Try Bearer format as fallback
-      if (response.status === 401 || response.status === 403) {
-        logger.info('Token auth failed, trying Bearer format...');
-        const retryResponse = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SANGAM_API_TOKEN}`,
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (retryResponse.ok) {
-          return await retryResponse.json();
-        }
+  for (const authHeader of authFormats) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authHeader,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        logger.info(`Sangam API success with auth format: ${authHeader.substring(0, 10)}...`, { status: response.status });
+        return data;
       }
-      logger.error(`Sangam API error: ${response.status} ${response.statusText}`);
+
+      if (response.status === 401 || response.status === 403) {
+        logger.info(`Auth format rejected: ${authHeader.substring(0, 10)}..., trying next...`);
+        continue;
+      }
+
+      // Non-auth error - log and return null
+      const errorText = await response.text().catch(() => '');
+      logger.error(`Sangam API error: ${response.status} ${response.statusText}`, { body: errorText.substring(0, 500) });
+      return null;
+    } catch (err) {
+      if (err.name === 'AbortError' || err.name === 'TimeoutError') {
+        logger.error(`Sangam API request timed out: ${url}`);
+        return null;
+      }
+      logger.error(`Sangam API request failed: ${err.message}`);
       return null;
     }
-
-    return await response.json();
-  } catch (err) {
-    logger.error(`Sangam API request failed: ${err.message}`);
-    return null;
   }
+
+  logger.error('All auth formats rejected by Sangam API');
+  return null;
 }
 
 /**
  * Search CRM bookings/placements via the REST API.
- * Tries multiple likely endpoint patterns for Sangam CRM.
+ * Tries multiple endpoint patterns for Sangam CRM.
+ * Sangam CRM typically uses: get-list, get-data with module_name parameter.
  */
 async function searchCRMBookings(query) {
   if (!SANGAM_API_TOKEN) return null;
 
-  // Try different endpoint patterns that Sangam CRM might use
+  // Try different endpoint patterns that Sangam CRM uses
+  // Based on research: Sangam uses module_name with endpoints like get-list, get-data, save-data
   const endpoints = [
+    // Most likely Sangam CRM patterns (module_name based)
+    { path: 'get-list', body: { module_name: 'Lead', search: query, limit: 50 } },
+    { path: 'get-list', body: { module_name: 'Leads', search: query, limit: 50 } },
+    { path: 'get-list', body: { module_name: 'Placement', search: query, limit: 50 } },
+    { path: 'get-list', body: { module_name: 'Placements', search: query, limit: 50 } },
+    { path: 'get-list', body: { module_name: 'Booking', search: query, limit: 50 } },
+    { path: 'get-list', body: { module_name: 'Bookings', search: query, limit: 50 } },
+    { path: 'get-data', body: { module_name: 'Lead', search: query } },
+    { path: 'get-data', body: { module_name: 'Leads', search: query } },
+    // Alternative search parameter formats
+    { path: 'get-list', body: { module_name: 'Lead', search_text: query, limit: 50 } },
+    { path: 'get-list', body: { module_name: 'Lead', query: query, limit: 50 } },
+    // Generic search endpoint
+    { path: 'search', body: { module: 'Lead', query: query, limit: 50 } },
+    { path: 'search', body: { module: 'Leads', query: query, limit: 50 } },
+    // Original patterns (leads-prefixed)
     { path: 'leads/search', body: { search: query } },
     { path: 'leads/list', body: { search: query, limit: 50 } },
     { path: 'leads', body: { search: query, limit: 50 } },
-    { path: 'search', body: { module: 'Leads', query: query, limit: 50 } },
     { path: 'records/search', body: { module: 'Leads', search_text: query } }
   ];
 
   for (const ep of endpoints) {
     const result = await apiRequest(ep.path, ep.body);
-    if (result && (result.data || result.records || result.leads || result.results || Array.isArray(result))) {
-      const records = result.data || result.records || result.leads || result.results || result;
-      if (Array.isArray(records)) {
-        logger.info(`Sangam API search succeeded via ${ep.path}: ${records.length} results`);
+    if (result && (result.data || result.records || result.leads || result.results || result.list || Array.isArray(result))) {
+      const records = result.data || result.records || result.leads || result.results || result.list || result;
+      if (Array.isArray(records) && records.length > 0) {
+        logger.info(`Sangam API search succeeded via ${ep.path} with body ${JSON.stringify(ep.body)}: ${records.length} results`);
         return records;
       }
     }
@@ -104,15 +129,19 @@ async function getCRMBookingByRef(ref) {
   if (!SANGAM_API_TOKEN) return null;
 
   const endpoints = [
-    { path: `leads/search`, body: { search: ref } },
-    { path: `leads/list`, body: { search: ref, limit: 5 } },
-    { path: `search`, body: { module: 'Leads', query: ref } }
+    { path: 'get-list', body: { module_name: 'Lead', search: ref, limit: 5 } },
+    { path: 'get-list', body: { module_name: 'Leads', search: ref, limit: 5 } },
+    { path: 'get-data', body: { module_name: 'Lead', search: ref } },
+    { path: 'get-data', body: { module_name: 'Lead', id: ref } },
+    { path: 'leads/search', body: { search: ref } },
+    { path: 'leads/list', body: { search: ref, limit: 5 } },
+    { path: 'search', body: { module: 'Leads', query: ref } }
   ];
 
   for (const ep of endpoints) {
     const result = await apiRequest(ep.path, ep.body);
-    if (result && (result.data || result.records || result.leads || result.results || Array.isArray(result))) {
-      const records = result.data || result.records || result.leads || result.results || result;
+    if (result && (result.data || result.records || result.leads || result.results || result.list || Array.isArray(result))) {
+      const records = result.data || result.records || result.leads || result.results || result.list || result;
       if (Array.isArray(records) && records.length > 0) {
         logger.info(`Sangam API ref lookup succeeded via ${ep.path}`);
         return records[0];
@@ -122,6 +151,132 @@ async function getCRMBookingByRef(ref) {
 
   return null;
 }
+
+/**
+ * Test all possible API endpoint patterns and return results.
+ * Used for diagnostics to find the correct endpoint.
+ */
+async function testAPIEndpoints() {
+  if (!SANGAM_API_TOKEN) {
+    return { error: 'SANGAM_API_TOKEN not configured', configured: false };
+  }
+
+  const testEndpoints = [
+    { path: 'get-list', body: { module_name: 'Lead', limit: 5 } },
+    { path: 'get-list', body: { module_name: 'Leads', limit: 5 } },
+    { path: 'get-list', body: { module_name: 'Placement', limit: 5 } },
+    { path: 'get-list', body: { module_name: 'Placements', limit: 5 } },
+    { path: 'get-list', body: { module_name: 'Booking', limit: 5 } },
+    { path: 'get-list', body: { module_name: 'Bookings', limit: 5 } },
+    { path: 'get-list', body: { module_name: 'Contact', limit: 5 } },
+    { path: 'get-list', body: { module_name: 'Account', limit: 5 } },
+    { path: 'get-data', body: { module_name: 'Lead' } },
+    { path: 'get-data', body: { module_name: 'Leads' } },
+    { path: 'leads/list', body: { limit: 5 } },
+    { path: 'leads', body: { limit: 5 } },
+    { path: 'search', body: { module: 'Lead', query: 'test' } },
+    { path: 'modules', body: {} },
+    { path: 'get-modules', body: {} },
+    { path: 'module-list', body: {} }
+  ];
+
+  const results = [];
+
+  for (const ep of testEndpoints) {
+    const url = `${SANGAM_URL}/api/v1/${ep.path}`;
+    const startTime = Date.now();
+
+    try {
+      // Try Token format first
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Token ${SANGAM_API_TOKEN}`,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(ep.body),
+        signal: AbortSignal.timeout(10000)
+      });
+
+      const elapsed = Date.now() - startTime;
+      let responseBody = null;
+      try {
+        responseBody = await response.json();
+      } catch (e) {
+        try {
+          responseBody = await response.text();
+        } catch (e2) {
+          responseBody = 'Could not read response';
+        }
+      }
+
+      results.push({
+        endpoint: ep.path,
+        body: ep.body,
+        status: response.status,
+        statusText: response.statusText,
+        elapsed: elapsed + 'ms',
+        success: response.ok,
+        response: typeof responseBody === 'object' ? responseBody : { raw: String(responseBody).substring(0, 500) },
+        recordCount: response.ok && responseBody ?
+          (Array.isArray(responseBody?.data) ? responseBody.data.length :
+           Array.isArray(responseBody?.records) ? responseBody.records.length :
+           Array.isArray(responseBody?.list) ? responseBody.list.length :
+           Array.isArray(responseBody?.leads) ? responseBody.leads.length :
+           Array.isArray(responseBody?.results) ? responseBody.results.length :
+           Array.isArray(responseBody) ? responseBody.length : null) : null
+      });
+
+      // If Token format got 401/403, also try Bearer
+      if (response.status === 401 || response.status === 403) {
+        const response2 = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SANGAM_API_TOKEN}`,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(ep.body),
+          signal: AbortSignal.timeout(10000)
+        });
+
+        let responseBody2 = null;
+        try { responseBody2 = await response2.json(); } catch(e) {
+          try { responseBody2 = await response2.text(); } catch(e2) { responseBody2 = 'Could not read'; }
+        }
+
+        if (response2.ok) {
+          results.push({
+            endpoint: ep.path,
+            body: ep.body,
+            authFormat: 'Bearer',
+            status: response2.status,
+            success: true,
+            response: typeof responseBody2 === 'object' ? responseBody2 : { raw: String(responseBody2).substring(0, 500) }
+          });
+        }
+      }
+    } catch (err) {
+      results.push({
+        endpoint: ep.path,
+        body: ep.body,
+        error: err.message,
+        success: false
+      });
+    }
+  }
+
+  return {
+    configured: true,
+    sangam_url: SANGAM_URL,
+    token_preview: SANGAM_API_TOKEN.substring(0, 8) + '...',
+    total_tested: results.length,
+    successful: results.filter(r => r.success).length,
+    results
+  };
+}
+
 
 /**
  * Normalize a Sangam CRM record into our standard booking format.
@@ -171,10 +326,9 @@ function extractField(record, fieldNames) {
   return '';
 }
 
-
-// ──────────────────────────────────────────────
-//  Local DB Search (for synced bookings)
-// ──────────────────────────────────────────────
+// ââââââââââââââââââââââââââââââââââââââââââââââ
+// Local DB Search (for synced bookings)
+// ââââââââââââââââââââââââââââââââââââââââââââââ
 
 /**
  * Search local bookings DB by name, ref, address, or council.
@@ -216,10 +370,9 @@ function getLocalBookingByRef(ref) {
   `).get({ ref });
 }
 
-
-// ──────────────────────────────────────────────
-//  Puppeteer Scraper (for bulk sync)
-// ──────────────────────────────────────────────
+// ââââââââââââââââââââââââââââââââââââââââââââââ
+// Puppeteer Scraper (for bulk sync)
+// ââââââââââââââââââââââââââââââââââââââââââââââ
 
 async function getPuppeteer() {
   try {
@@ -330,7 +483,11 @@ async function loginAndGetPage() {
 
 async function scrapeDetailPage(page, uuid) {
   try {
-    await page.goto(`${SANGAM_URL}/leads/${uuid}`, { waitUntil: 'networkidle2', timeout: 25000 });
+    await page.goto(`${SANGAM_URL}/leads/${uuid}`, {
+      waitUntil: 'networkidle2',
+      timeout: 25000
+    });
+
     await new Promise(r => setTimeout(r, 1500));
 
     const details = await page.evaluate(() => {
@@ -428,7 +585,6 @@ async function scrapeDetailPage(page, uuid) {
       hasAddress: !!details.property_address,
       hasCouncil: !!details.council_name
     });
-
     return details;
   } catch (err) {
     logger.error(`Failed to scrape detail page for ${uuid}`, { error: err.message });
@@ -450,10 +606,17 @@ async function scrapePlacements(page) {
     const clicked100 = await page.evaluate(() => {
       const links = document.querySelectorAll('a');
       for (const link of links) {
-        if (link.textContent.trim() === '100') { link.click(); return true; }
+        if (link.textContent.trim() === '100') {
+          link.click();
+          return true;
+        }
       }
       const select = document.querySelector('select[name*="length"], .dataTables_length select');
-      if (select) { select.value = '100'; select.dispatchEvent(new Event('change')); return true; }
+      if (select) {
+        select.value = '100';
+        select.dispatchEvent(new Event('change'));
+        return true;
+      }
       return false;
     });
 
@@ -462,11 +625,13 @@ async function scrapePlacements(page) {
     const placements = await page.evaluate(() => {
       const rows = document.querySelectorAll('table tbody tr');
       const results = [];
+
       rows.forEach(row => {
         const link = row.querySelector('a[href*="/leads/"]');
         if (!link) return;
         const cells = row.querySelectorAll('td');
         if (cells.length < 10) return;
+
         const uuid = link.href.split('/leads/')[1];
 
         let phone = '';
@@ -475,7 +640,9 @@ async function scrapePlacements(page) {
           if (phoneCell && phoneCell.startsWith('[')) {
             const phoneData = JSON.parse(phoneCell);
             if (phoneData[0]?.phone_number) phone = phoneData[0].phone_number;
-          } else { phone = phoneCell || ''; }
+          } else {
+            phone = phoneCell || '';
+          }
         } catch(e) {}
 
         let email = '';
@@ -484,23 +651,33 @@ async function scrapePlacements(page) {
           if (emailCell && emailCell.startsWith('[')) {
             const emailData = JSON.parse(emailCell);
             if (emailData[0]?.email_address) email = emailData[0].email_address;
-          } else { email = emailCell || ''; }
+          } else {
+            email = emailCell || '';
+          }
         } catch(e) {}
 
         results.push({
-          sangam_id: uuid, first_name: cells[3]?.textContent.trim() || '',
-          last_name: cells[4]?.textContent.trim() || '', risk_profile: cells[5]?.textContent.trim() || '',
-          reference_number: cells[10]?.textContent.trim() || '', phone, email,
-          nightly_rate: cells[14]?.textContent.trim() || '', created_at: cells[15]?.textContent.trim() || '',
-          updated_at: cells[16]?.textContent.trim() || '', assigned_to: cells[18]?.textContent.trim() || ''
+          sangam_id: uuid,
+          first_name: cells[3]?.textContent.trim() || '',
+          last_name: cells[4]?.textContent.trim() || '',
+          risk_profile: cells[5]?.textContent.trim() || '',
+          reference_number: cells[10]?.textContent.trim() || '',
+          phone,
+          email,
+          nightly_rate: cells[14]?.textContent.trim() || '',
+          created_at: cells[15]?.textContent.trim() || '',
+          updated_at: cells[16]?.textContent.trim() || '',
+          assigned_to: cells[18]?.textContent.trim() || ''
         });
       });
+
       return results;
     });
 
     // Scrape detail pages
     logger.info('Starting individual placement detail scraping...');
     let detailCount = 0;
+
     for (const placement of placements) {
       if (!placement.sangam_id) continue;
       try {
@@ -562,13 +739,20 @@ function processEntries(entries) {
     try {
       if (!record.sangam_id) continue;
       const mapped = {
-        sangam_id: record.sangam_id, first_name: record.first_name || '',
-        last_name: record.last_name || '', email: record.email || '',
-        phone: record.phone || '', property_address: record.property_address || '',
-        council_name: record.council_name || '', placement_start: record.placement_start || record.created_at || '',
-        placement_end: record.placement_end || '', reference_number: record.reference_number || '',
-        risk_profile: record.risk_profile || '', nightly_rate: record.nightly_rate || '',
-        assigned_to: record.assigned_to || '', raw_data: JSON.stringify(record)
+        sangam_id: record.sangam_id,
+        first_name: record.first_name || '',
+        last_name: record.last_name || '',
+        email: record.email || '',
+        phone: record.phone || '',
+        property_address: record.property_address || '',
+        council_name: record.council_name || '',
+        placement_start: record.placement_start || record.created_at || '',
+        placement_end: record.placement_end || '',
+        reference_number: record.reference_number || '',
+        risk_profile: record.risk_profile || '',
+        nightly_rate: record.nightly_rate || '',
+        assigned_to: record.assigned_to || '',
+        raw_data: JSON.stringify(record)
       };
       upsert.run(mapped);
     } catch (err) {
@@ -610,7 +794,9 @@ async function syncFromCRM() {
 }
 
 async function getModuleList() {
-  return { modules: ['Placements', 'Bookings', 'Properties', 'Councils', 'Maintenance Jobs', 'Landlords/Agents'] };
+  return {
+    modules: ['Placements', 'Bookings', 'Properties', 'Councils', 'Maintenance Jobs', 'Landlords/Agents']
+  };
 }
 
 async function getFieldList(moduleName) {
@@ -630,5 +816,6 @@ module.exports = {
   normalizeCRMRecord,
   searchLocalBookings,
   getRecentBookings,
-  getLocalBookingByRef
+  getLocalBookingByRef,
+  testAPIEndpoints
 };
