@@ -71,7 +71,8 @@ async function login() {
           sid = data.data;
         } else if (typeof data.data === 'object') {
           // The session ID is data.data.id
-          sid = data.data.id || data.data.session_id || data.data.sessionId || data.data.token || data.data.session;
+          // IMPORTANT: data.data.token is JWT, data.data.id is user UUID
+              sid = data.data.token || data.data.session_id || data.data.id || data.data.session;
           console.log('Sangam CRM: Login data.data keys:', Object.keys(data.data).join(', '));
         }
       }
@@ -81,7 +82,7 @@ async function login() {
         sid = data.session_id || data.sessionId || data.id || data.token || data.access_token || data.session;
       }
 
-      if (sid && typeof sid === 'string' && !sid.startsWith('{')) {
+      if (sid && typeof sid === 'string' && sid.length > 10) {
         sessionId = sid;
         sessionExpiry = Date.now() + 3600000; // Cache for 1 hour
         console.log('Sangam CRM: Login successful, session ID:', sid.substring(0, 20) + '...');
@@ -193,7 +194,7 @@ async function pullApiRequest(endpoint, bodyParams = {}, options = {}) {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Authorization': `Bearer ${SANGAM_API_TOKEN}`,
+        'Authorization': `Bearer ${sid || SANGAM_API_TOKEN}`,
         'Token': SANGAM_API_TOKEN
       },
       body: JSON.stringify(body),
@@ -224,7 +225,7 @@ async function pullApiRequest(endpoint, bodyParams = {}, options = {}) {
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              'Authorization': `Bearer ${SANGAM_API_TOKEN}`,
+              'Authorization': `Bearer ${sid || SANGAM_API_TOKEN}`,
               'Token': SANGAM_API_TOKEN
             },
             body: JSON.stringify(body)
@@ -508,107 +509,7 @@ async function testAPIEndpoints() {
   }, 'pull');
   results.push({ endpoint: 'fetch all Leads (pull)', ...searchResult });
 
-  // ===== DIAGNOSTIC TESTS =====
-    // First, get full login response to see all available fields
-    sessionId = null;
-    sessionExpiry = 0;
-    try {
-      const loginResp = await fetch(`${SANGAM_API_URL}/api/v1/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${SANGAM_API_TOKEN}` },
-        body: JSON.stringify({ user_name: SANGAM_USERNAME, password: SANGAM_PASSWORD })
-      });
-      const loginData = await loginResp.json();
-      const debugSid = loginData?.data?.id || loginData?.data?.session_id || loginData?.id || '';
-      
-      // Record full login response structure
-      results.push({
-        endpoint: 'DIAG-LOGIN: Full login response',
-        status: loginResp.status,
-        success: loginResp.ok,
-        response: {
-          top_keys: Object.keys(loginData || {}),
-          data_keys: loginData?.data ? Object.keys(loginData.data) : [],
-          data_type: typeof loginData?.data,
-          session_id_used: debugSid ? debugSid.substring(0, 30) + '...' : 'none',
-          full_data: JSON.parse(JSON.stringify(loginData || {}, (key, val) => {
-            if (typeof val === 'string' && val.length > 40) return val.substring(0, 40) + '...';
-            return val;
-          }))
-        }
-      });
-
-      // Test F: rest_data with token as session (API token instead of login session)
-      try {
-        const startF = Date.now();
-        const respF = await fetch(`${SANGAM_API_URL}/api/v1/getentry-list-new`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${SANGAM_API_TOKEN}`, 'Token': SANGAM_API_TOKEN },
-          body: JSON.stringify({ rest_data: { session: SANGAM_API_TOKEN, module_name: 'Lead', max_result: 2, query: '', offset: 0 } })
-        });
-        const textF = await respF.text();
-        let dataF; try { dataF = JSON.parse(textF); } catch { dataF = { text: textF.substring(0, 200) }; }
-        results.push({ endpoint: 'DIAG-F: API token as session in rest_data', status: respF.status, success: respF.ok, elapsed: `${Date.now() - startF}ms`, response: dataF });
-      } catch(e) { results.push({ endpoint: 'DIAG-F', success: false, response: { error: e.message } }); }
-
-      // Test G: rest_data with session + token field
-      try {
-        const startG = Date.now();
-        const respG = await fetch(`${SANGAM_API_URL}/api/v1/getentry-list-new`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${SANGAM_API_TOKEN}`, 'Token': SANGAM_API_TOKEN },
-          body: JSON.stringify({ rest_data: { session: debugSid, token: SANGAM_API_TOKEN, authorization: `Bearer ${SANGAM_API_TOKEN}`, module_name: 'Lead', max_result: 2, query: '', offset: 0 } })
-        });
-        const textG = await respG.text();
-        let dataG; try { dataG = JSON.parse(textG); } catch { dataG = { text: textG.substring(0, 200) }; }
-        results.push({ endpoint: 'DIAG-G: session+token in rest_data', status: respG.status, success: respG.ok, elapsed: `${Date.now() - startG}ms`, response: dataG });
-      } catch(e) { results.push({ endpoint: 'DIAG-G', success: false, response: { error: e.message } }); }
-
-      // Test H: Only token in header, session in body (no rest_data wrapper)
-      try {
-        const startH = Date.now();
-        const respH = await fetch(`${SANGAM_API_URL}/api/v1/getentry-list-new`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${SANGAM_API_TOKEN}`, 'Token': SANGAM_API_TOKEN, 'Session': debugSid, 'X-Session-Id': debugSid },
-          body: JSON.stringify({ module_name: 'Lead', max_result: 2, query: '', offset: 0, session: debugSid })
-        });
-        const textH = await respH.text();
-        let dataH; try { dataH = JSON.parse(textH); } catch { dataH = { text: textH.substring(0, 200) }; }
-        results.push({ endpoint: 'DIAG-H: session in headers+body no rest_data', status: respH.status, success: respH.ok, elapsed: `${Date.now() - startH}ms`, response: dataH });
-      } catch(e) { results.push({ endpoint: 'DIAG-H', success: false, response: { error: e.message } }); }
-
-      // Test I: Try using the Push API format for pulling (token auth, no session)
-      try {
-        const startI = Date.now();
-        const respI = await fetch(`${SANGAM_API_URL}/api/v1/getentry-list-new`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${SANGAM_API_TOKEN}`, 'Token': SANGAM_API_TOKEN },
-          body: JSON.stringify({ authorization: `Bearer ${SANGAM_API_TOKEN}`, token: SANGAM_API_TOKEN, module_name: 'Lead', max_result: 2, query: '', offset: 0 })
-        });
-        const textI = await respI.text();
-        let dataI; try { dataI = JSON.parse(textI); } catch { dataI = { text: textI.substring(0, 200) }; }
-        results.push({ endpoint: 'DIAG-I: Push API format for Pull endpoint', status: respI.status, success: respI.ok, elapsed: `${Date.now() - startI}ms`, response: dataI });
-      } catch(e) { results.push({ endpoint: 'DIAG-I', success: false, response: { error: e.message } }); }
-
-      // Test J: Try different endpoint names
-      for (const ep of ['get-entry-list', 'getentrylist', 'get_entry_list', 'entry-list']) {
-        try {
-          const startJ = Date.now();
-          const respJ = await fetch(`${SANGAM_API_URL}/api/v1/${ep}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${SANGAM_API_TOKEN}`, 'Token': SANGAM_API_TOKEN },
-            body: JSON.stringify({ rest_data: { session: debugSid, module_name: 'Lead', max_result: 2, query: '', offset: 0 }, authorization: `Bearer ${SANGAM_API_TOKEN}`, token: SANGAM_API_TOKEN })
-          });
-          const textJ = await respJ.text();
-          let dataJ; try { dataJ = JSON.parse(textJ); } catch { dataJ = { text: textJ.substring(0, 200) }; }
-          results.push({ endpoint: `DIAG-J: endpoint /${ep}`, status: respJ.status, success: respJ.ok, elapsed: `${Date.now() - startJ}ms`, response: dataJ });
-        } catch(e) { results.push({ endpoint: `DIAG-J: /${ep}`, success: false, response: { error: e.message } }); }
-      }
-
-    } catch(loginErr) {
-      results.push({ endpoint: 'DIAG-LOGIN', success: false, response: { error: loginErr.message } });
-    }
-
+  
     const successful = results.filter(r => r.success).length;
   console.log(`Diagnostics: ${successful}/${results.length} successful`);
 
