@@ -171,12 +171,14 @@ async function pullApiRequest(endpoint, bodyParams = {}, options = {}) {
   };
 
   // Also try flat body format as fallback
+  // Try multiple auth formats for compatibility
   const body = {
     rest_data: restData,
     // Include flat params too for compatibility
     session: sid || '',
     session_id: sid || '',
     authorization: `Bearer ${SANGAM_API_TOKEN}`,
+    token: SANGAM_API_TOKEN,
     ...bodyParams
   };
 
@@ -191,7 +193,8 @@ async function pullApiRequest(endpoint, bodyParams = {}, options = {}) {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Authorization': `Bearer ${sid || SANGAM_API_TOKEN}`
+        'Authorization': `Bearer ${SANGAM_API_TOKEN}`,
+        'Token': SANGAM_API_TOKEN
       },
       body: JSON.stringify(body),
       signal: controller.signal
@@ -221,7 +224,8 @@ async function pullApiRequest(endpoint, bodyParams = {}, options = {}) {
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              'Authorization': `Bearer ${newSid}`
+              'Authorization': `Bearer ${SANGAM_API_TOKEN}`,
+              'Token': SANGAM_API_TOKEN
             },
             body: JSON.stringify(body)
           });
