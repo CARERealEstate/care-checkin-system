@@ -11,6 +11,9 @@
  *   /api/v1/save-data         - Insert or update records (Push)
  *   /api/v1/login             - Login to get session (Pull)
  *   /api/v1/getentry-list-new - Fetch/search records (Pull - needs session)
+ *
+ * IMPORTANT: Pull API body uses { rest_data: { session, module_name, ... } } format
+ * Module names are singular: Lead, Contact, Account, Ticket, Opportunity
  */
 
 const SANGAM_API_TOKEN = process.env.SANGAM_API_TOKEN || process.env.SANGAM_API_KEY || '';
@@ -24,6 +27,7 @@ let sessionExpiry = 0;
 
 /**
  * Login to Sangam CRM and get a session ID for Pull API
+ * Response format: { status: 200, data: { id: "session-uuid", name: "...", ... } }
  */
 async function login() {
   if (sessionId && Date.now() < sessionExpiry) {
@@ -43,16 +47,12 @@ async function login() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${SANGAM_API_TOKEN}`
       },
       body: JSON.stringify({
         user_name: SANGAM_USERNAME,
-        password: SANGAM_PASSWORD,
-        username: SANGAM_USERNAME,
-        user_auth: {
-          user_name: SANGAM_USERNAME,
-          password: SANGAM_PASSWORD
-        }
+        password: SANGAM_PASSWORD
       })
     });
 
@@ -62,27 +62,29 @@ async function login() {
     if (response.ok && data) {
       console.log('Sangam CRM login response keys:', Object.keys(data).join(', '));
 
-      // Try to extract session ID from various response formats
-      // Sangam CRM returns {"status":200,"data":"session_id"} format
-      let sid = data.session_id || data.sessionId || data.id || data.token || data.access_token || data.session;
+      // Sangam CRM returns { status: 200, data: { id: "session-uuid", ... } }
+      let sid = null;
 
-      // Check data.data - Sangam CRM wraps session in {status, data} format
-      if (!sid && data.data) {
+      // Check data.data (the nested data object from Sangam response)
+      if (data.data) {
         if (typeof data.data === 'string') {
           sid = data.data;
         } else if (typeof data.data === 'object') {
-          sid = data.data.session_id || data.data.sessionId || data.data.id || data.data.token || data.data.session;
-          if (!sid) {
-            // If data.data is an object, stringify it as session
-            sid = JSON.stringify(data.data);
-          }
+          // The session ID is data.data.id
+          sid = data.data.id || data.data.session_id || data.data.sessionId || data.data.token || data.data.session;
+          console.log('Sangam CRM: Login data.data keys:', Object.keys(data.data).join(', '));
         }
+      }
+
+      // Fallback: check top-level fields
+      if (!sid) {
+        sid = data.session_id || data.sessionId || data.id || data.token || data.access_token || data.session;
       }
 
       if (sid && typeof sid === 'string' && !sid.startsWith('{')) {
         sessionId = sid;
         sessionExpiry = Date.now() + 3600000; // Cache for 1 hour
-        console.log('Sangam CRM: Login successful, session obtained');
+        console.log('Sangam CRM: Login successful, session ID:', sid.substring(0, 20) + '...');
         return sessionId;
       }
 
@@ -93,14 +95,11 @@ async function login() {
         return sessionId;
       }
 
-      console.log('Sangam CRM: Login response structure:', JSON.stringify(data).substring(0, 200));
-      // Store whatever we have as session - it might work
-      sessionId = sid || JSON.stringify(data);
-      sessionExpiry = Date.now() + 3600000;
-      return sessionId;
+      console.log('Sangam CRM: Login response structure:', JSON.stringify(data).substring(0, 300));
+      return null;
     }
 
-    console.error('Sangam CRM: Login failed:', data);
+    console.error('Sangam CRM: Login failed:', response.status, data);
     return null;
   } catch (err) {
     console.error('Sangam CRM: Login error:', err.message);
@@ -157,19 +156,27 @@ async function pushApiRequest(endpoint, bodyParams = {}, options = {}) {
 
 /**
  * Make a Pull API request (uses login session)
+ * IMPORTANT: Body must use { rest_data: { session, module_name, ... } } format
  */
 async function pullApiRequest(endpoint, bodyParams = {}, options = {}) {
   // First ensure we have a session
-  const sid = await login();
+  let sid = await login();
 
   const url = `${SANGAM_API_URL}/api/v1/${endpoint}`;
 
-  // Build body with all possible auth formats
+  // Build body with rest_data wrapper (required by Sangam CRM Pull API)
+  const restData = {
+    session: sid || '',
+    ...bodyParams
+  };
+
+  // Also try flat body format as fallback
   const body = {
+    rest_data: restData,
+    // Include flat params too for compatibility
     session: sid || '',
     session_id: sid || '',
     authorization: `Bearer ${SANGAM_API_TOKEN}`,
-    token: SANGAM_API_TOKEN,
     ...bodyParams
   };
 
@@ -177,13 +184,14 @@ async function pullApiRequest(endpoint, bodyParams = {}, options = {}) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), options.timeout || 15000);
 
+    console.log(`Sangam CRM Pull API [${endpoint}]: sending request with session ${sid ? sid.substring(0, 12) + '...' : 'none'}`);
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Authorization': `Bearer ${SANGAM_API_TOKEN}`,
-        'Token': SANGAM_API_TOKEN
+        'Authorization': `Bearer ${sid || SANGAM_API_TOKEN}`
       },
       body: JSON.stringify(body),
       signal: controller.signal
@@ -193,28 +201,33 @@ async function pullApiRequest(endpoint, bodyParams = {}, options = {}) {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error(`Sangam CRM Pull API error [${endpoint}]: ${response.status}`, data);
+      console.error(`Sangam CRM Pull API error [${endpoint}]: ${response.status}`, JSON.stringify(data).substring(0, 200));
+
       // If unauthorized, clear session and retry once
       if (response.status === 401 && sid) {
         console.log('Sangam CRM: Session expired, re-logging in...');
         sessionId = null;
         sessionExpiry = 0;
         const newSid = await login();
-        if (newSid && newSid !== sid) {
+        if (newSid) {
+          // Rebuild body with new session
+          restData.session = newSid;
+          body.rest_data = restData;
           body.session = newSid;
           body.session_id = newSid;
+
           const retry = await fetch(url, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              'Authorization': `Bearer ${SANGAM_API_TOKEN}`,
-              'Token': SANGAM_API_TOKEN
+              'Authorization': `Bearer ${newSid}`
             },
             body: JSON.stringify(body)
           });
           const retryData = await retry.json();
           if (retry.ok) return retryData;
+          console.error('Sangam CRM Pull API retry failed:', retry.status, JSON.stringify(retryData).substring(0, 200));
           return { error: true, status: retry.status, data: retryData };
         }
       }
@@ -244,18 +257,21 @@ async function getFieldList(moduleName) {
 
 /**
  * Fetch records from a module (Pull API - requires login)
+ * Uses rest_data format with max_result and query parameters
  */
-async function fetchRecords(moduleName, filters = {}, limit = 50, offset = 0) {
+async function fetchRecords(moduleName, filters = {}, maxResult = 50, offset = 0) {
   return await pullApiRequest('getentry-list-new', {
     module_name: moduleName,
-    limit,
+    max_result: maxResult,
     offset,
+    query: '',
     ...filters
   });
 }
 
 /**
  * Search CRM bookings/records by name, email, phone, or reference
+ * Uses MySQL-style WHERE clause for query parameter
  */
 async function searchCRMBookings(query) {
   if (!query || query.length < 2) return [];
@@ -267,15 +283,25 @@ async function searchCRMBookings(query) {
   console.log(`Sangam CRM: Searching for "${query}"...`);
   const allResults = [];
 
-  // Try multiple modules
-  const modulesToSearch = ['Leads', 'Lead', 'Contacts', 'Contact', 'Bookings', 'Booking', 'Placements', 'Placement', 'Accounts', 'Account'];
+  // Sangam CRM uses singular module names
+  const modulesToSearch = ['Lead', 'Contact', 'Account', 'Opportunity', 'Ticket'];
+
+  // Escape query for MySQL LIKE
+  const escapedQuery = query.replace(/'/g, "\\'").replace(/%/g, '\\%');
 
   for (const moduleName of modulesToSearch) {
     try {
+      // Build MySQL-style WHERE clause for searching across common fields
+      const tablePrefix = moduleName.toLowerCase() + 's';
+      const queryClause = [
+        `${tablePrefix}.first_name LIKE '%${escapedQuery}%'`,
+        `${tablePrefix}.last_name LIKE '%${escapedQuery}%'`,
+      ].join(' OR ');
+
       const result = await pullApiRequest('getentry-list-new', {
         module_name: moduleName,
-        search_text: query,
-        limit: 20,
+        max_result: 20,
+        query: queryClause,
         offset: 0
       });
 
@@ -293,11 +319,38 @@ async function searchCRMBookings(query) {
     }
   }
 
+  // Also try a simple search without query filter (just get all and filter client-side)
+  if (allResults.length === 0) {
+    console.log('Sangam CRM: Trying broad search without query filter...');
+    for (const moduleName of ['Lead', 'Contact']) {
+      try {
+        const result = await pullApiRequest('getentry-list-new', {
+          module_name: moduleName,
+          max_result: 100,
+          query: '',
+          offset: 0
+        });
+
+        if (result && !result.error) {
+          const records = result.data || result.entry_list || result.records || (Array.isArray(result) ? result : []);
+          if (Array.isArray(records) && records.length > 0) {
+            console.log(`Sangam CRM: Got ${records.length} total records from ${moduleName}`);
+            for (const record of records) {
+              allResults.push(normalizeCRMRecord(record, moduleName));
+            }
+          }
+        }
+      } catch (err) {
+        console.log(`Sangam CRM: Error in broad search ${moduleName}: ${err.message}`);
+      }
+    }
+  }
+
   // Filter results matching query
   if (allResults.length > 0) {
     const queryLower = query.toLowerCase();
     const filtered = allResults.filter(r => {
-      const searchable = [r.name, r.email, r.phone, r.reference, r.company].filter(Boolean).join(' ').toLowerCase();
+      const searchable = [r.name, r.email, r.phone, r.reference, r.company, r.first_name, r.last_name].filter(Boolean).join(' ').toLowerCase();
       return searchable.includes(queryLower);
     });
     console.log(`Sangam CRM: ${filtered.length} filtered results from ${allResults.length} total`);
@@ -313,14 +366,18 @@ async function searchCRMBookings(query) {
 async function getCRMBookingByRef(ref) {
   if (!ref) return null;
 
-  const modulesToSearch = ['Leads', 'Lead', 'Bookings', 'Booking', 'Placements', 'Placement'];
+  const modulesToSearch = ['Lead', 'Contact', 'Account', 'Opportunity'];
 
   for (const moduleName of modulesToSearch) {
     try {
+      const tablePrefix = moduleName.toLowerCase() + 's';
+      const escapedRef = ref.replace(/'/g, "\\'");
+
       const result = await pullApiRequest('getentry-list-new', {
         module_name: moduleName,
-        search_text: ref,
-        limit: 5
+        max_result: 5,
+        query: `${tablePrefix}.id = '${escapedRef}' OR ${tablePrefix}.first_name LIKE '%${escapedRef}%' OR ${tablePrefix}.last_name LIKE '%${escapedRef}%'`,
+        offset: 0
       });
 
       const records = result?.data || result?.entry_list || result?.records || (Array.isArray(result) ? result : []);
@@ -432,15 +489,20 @@ async function testAPIEndpoints() {
   const modResult = await testEndpoint('modulelist', {}, 'push');
   results.push({ endpoint: 'modulelist (push)', ...modResult });
 
-  // Test 3: getentry-list-new with session (Pull API)
-  for (const mod of ['Leads', 'Contacts', 'Bookings']) {
-    const pullResult = await testEndpoint('getentry-list-new', { module_name: mod, limit: 2 }, 'pull');
+  // Test 3: getentry-list-new with session (Pull API) - use singular module names
+  for (const mod of ['Lead', 'Contact', 'Account']) {
+    const pullResult = await testEndpoint('getentry-list-new', { module_name: mod, max_result: 2, query: '', offset: 0 }, 'pull');
     results.push({ endpoint: `getentry-list-new ${mod} (pull)`, ...pullResult });
   }
 
-  // Test 4: Search
-  const searchResult = await testEndpoint('getentry-list-new', { module_name: 'Leads', search_text: 'test', limit: 2 }, 'pull');
-  results.push({ endpoint: 'search Leads (pull)', ...searchResult });
+  // Test 4: Search with query
+  const searchResult = await testEndpoint('getentry-list-new', {
+    module_name: 'Lead',
+    max_result: 5,
+    query: '',
+    offset: 0
+  }, 'pull');
+  results.push({ endpoint: 'fetch all Leads (pull)', ...searchResult });
 
   const successful = results.filter(r => r.success).length;
   console.log(`Diagnostics: ${successful}/${results.length} successful`);
@@ -457,7 +519,6 @@ async function testAPIEndpoints() {
 }
 
 async function testEndpoint(endpoint, body, type) {
-  const url = `${SANGAM_API_URL}/api/v1/${endpoint}`;
   const requestFn = type === 'pull' ? pullApiRequest : pushApiRequest;
 
   try {
