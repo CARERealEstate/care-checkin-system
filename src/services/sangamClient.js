@@ -508,6 +508,158 @@ async function testAPIEndpoints() {
   }, 'pull');
   results.push({ endpoint: 'fetch all Leads (pull)', ...searchResult });
 
+  // ===== RAW FORMAT TESTS =====
+  // Try different request formats to find what works for Pull API
+  const sid = await login();
+  if (sid) {
+    // Format A: form-urlencoded with rest_data as JSON string (SugarCRM style)
+    try {
+      const startA = Date.now();
+      const formBody = new URLSearchParams();
+      formBody.append('method', 'get_entry_list');
+      formBody.append('input_type', 'JSON');
+      formBody.append('response_type', 'JSON');
+      formBody.append('rest_data', JSON.stringify({
+        session: sid,
+        module_name: 'Lead',
+        query: '',
+        order_by: '',
+        offset: 0,
+        select_fields: [],
+        link_name_to_fields_list: [],
+        max_results: 2,
+        deleted: 0
+      }));
+      const respA = await fetch(`${SANGAM_API_URL}/api/v1/getentry-list-new`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formBody.toString()
+      });
+      const dataA = await respA.json().catch(() => respA.text());
+      results.push({
+        endpoint: 'RAW-A: form-urlencoded + rest_data string',
+        status: respA.status,
+        success: respA.ok,
+        elapsed: `${Date.now() - startA}ms`,
+        response: typeof dataA === 'string' ? { text: dataA.substring(0, 200) } : dataA
+      });
+    } catch(e) { results.push({ endpoint: 'RAW-A', success: false, response: { error: e.message } }); }
+
+    // Format B: JSON body with rest_data as string (not object)
+    try {
+      const startB = Date.now();
+      const respB = await fetch(`${SANGAM_API_URL}/api/v1/getentry-list-new`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SANGAM_API_TOKEN}`,
+          'Token': SANGAM_API_TOKEN
+        },
+        body: JSON.stringify({
+          rest_data: JSON.stringify({ session: sid, module_name: 'Lead', max_result: 2, query: '', offset: 0 }),
+          session: sid,
+          authorization: `Bearer ${SANGAM_API_TOKEN}`,
+          token: SANGAM_API_TOKEN
+        })
+      });
+      const dataB = await respB.json().catch(() => respB.text());
+      results.push({
+        endpoint: 'RAW-B: JSON body + rest_data as string',
+        status: respB.status,
+        success: respB.ok,
+        elapsed: `${Date.now() - startB}ms`,
+        response: typeof dataB === 'string' ? { text: dataB.substring(0, 200) } : dataB
+      });
+    } catch(e) { results.push({ endpoint: 'RAW-B', success: false, response: { error: e.message } }); }
+
+    // Format C: Flat JSON body, no rest_data, with token+session
+    try {
+      const startC = Date.now();
+      const respC = await fetch(`${SANGAM_API_URL}/api/v1/getentry-list-new`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SANGAM_API_TOKEN}`,
+          'Token': SANGAM_API_TOKEN
+        },
+        body: JSON.stringify({
+          session: sid,
+          session_id: sid,
+          module_name: 'Lead',
+          max_result: 2,
+          query: '',
+          offset: 0,
+          authorization: `Bearer ${SANGAM_API_TOKEN}`,
+          token: SANGAM_API_TOKEN
+        })
+      });
+      const dataC = await respC.json().catch(() => respC.text());
+      results.push({
+        endpoint: 'RAW-C: Flat JSON no rest_data',
+        status: respC.status,
+        success: respC.ok,
+        elapsed: `${Date.now() - startC}ms`,
+        response: typeof dataC === 'string' ? { text: dataC.substring(0, 200) } : dataC
+      });
+    } catch(e) { results.push({ endpoint: 'RAW-C', success: false, response: { error: e.message } }); }
+
+    // Format D: session in URL as query param
+    try {
+      const startD = Date.now();
+      const respD = await fetch(`${SANGAM_API_URL}/api/v1/getentry-list-new?session=${sid}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SANGAM_API_TOKEN}`,
+          'Token': SANGAM_API_TOKEN
+        },
+        body: JSON.stringify({
+          module_name: 'Lead',
+          max_result: 2,
+          query: '',
+          offset: 0,
+          authorization: `Bearer ${SANGAM_API_TOKEN}`,
+          token: SANGAM_API_TOKEN
+        })
+      });
+      const dataD = await respD.json().catch(() => respD.text());
+      results.push({
+        endpoint: 'RAW-D: session in URL query',
+        status: respD.status,
+        success: respD.ok,
+        elapsed: `${Date.now() - startD}ms`,
+        response: typeof dataD === 'string' ? { text: dataD.substring(0, 200) } : dataD
+      });
+    } catch(e) { results.push({ endpoint: 'RAW-D', success: false, response: { error: e.message } }); }
+
+    // Format E: Session as Bearer token (not API token)
+    try {
+      const startE = Date.now();
+      const respE = await fetch(`${SANGAM_API_URL}/api/v1/getentry-list-new`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sid}`
+        },
+        body: JSON.stringify({
+          module_name: 'Lead',
+          max_result: 2,
+          query: '',
+          offset: 0,
+          session: sid
+        })
+      });
+      const dataE = await respE.json().catch(() => respE.text());
+      results.push({
+        endpoint: 'RAW-E: Session as Bearer, minimal body',
+        status: respE.status,
+        success: respE.ok,
+        elapsed: `${Date.now() - startE}ms`,
+        response: typeof dataE === 'string' ? { text: dataE.substring(0, 200) } : dataE
+      });
+    } catch(e) { results.push({ endpoint: 'RAW-E', success: false, response: { error: e.message } }); }
+  }
+
   const successful = results.filter(r => r.success).length;
   console.log(`Diagnostics: ${successful}/${results.length} successful`);
 
