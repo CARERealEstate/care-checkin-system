@@ -168,7 +168,10 @@ async function pullApiRequest(endpoint, bodyParams = {}, options = {}) {
   // Build body with rest_data wrapper (required by Sangam CRM Pull API)
   const restData = {
     session: sid || '',
-    ...bodyParams
+    select_fields: [],
+      link_name_to_fields_list: [],
+      deleted: 0,
+      ...bodyParams
   };
 
   // Also try flat body format as fallback
