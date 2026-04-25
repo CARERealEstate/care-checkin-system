@@ -510,8 +510,8 @@ async function testAPIEndpoints() {
 
   // ===== RAW FORMAT TESTS =====
   // Try different request formats to find what works for Pull API
-  const sid = await login();
-  if (sid) {
+  const debugSid = await login();
+  if (debugSid) {
     // Format A: form-urlencoded with rest_data as JSON string (SugarCRM style)
     try {
       const startA = Date.now();
@@ -520,7 +520,7 @@ async function testAPIEndpoints() {
       formBody.append('input_type', 'JSON');
       formBody.append('response_type', 'JSON');
       formBody.append('rest_data', JSON.stringify({
-        session: sid,
+        session: debugSid,
         module_name: 'Lead',
         query: '',
         order_by: '',
@@ -556,8 +556,8 @@ async function testAPIEndpoints() {
           'Token': SANGAM_API_TOKEN
         },
         body: JSON.stringify({
-          rest_data: JSON.stringify({ session: sid, module_name: 'Lead', max_result: 2, query: '', offset: 0 }),
-          session: sid,
+          rest_data: JSON.stringify({ session: debugSid, module_name: 'Lead', max_result: 2, query: '', offset: 0 }),
+          session: debugSid,
           authorization: `Bearer ${SANGAM_API_TOKEN}`,
           token: SANGAM_API_TOKEN
         })
@@ -583,8 +583,8 @@ async function testAPIEndpoints() {
           'Token': SANGAM_API_TOKEN
         },
         body: JSON.stringify({
-          session: sid,
-          session_id: sid,
+          session: debugSid,
+          session_id: debugSid,
           module_name: 'Lead',
           max_result: 2,
           query: '',
@@ -606,7 +606,7 @@ async function testAPIEndpoints() {
     // Format D: session in URL as query param
     try {
       const startD = Date.now();
-      const respD = await fetch(`${SANGAM_API_URL}/api/v1/getentry-list-new?session=${sid}`, {
+      const respD = await fetch(`${SANGAM_API_URL}/api/v1/getentry-list-new?session=${debugSid}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -639,14 +639,14 @@ async function testAPIEndpoints() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sid}`
+          'Authorization': `Bearer ${debugSid}`
         },
         body: JSON.stringify({
           module_name: 'Lead',
           max_result: 2,
           query: '',
           offset: 0,
-          session: sid
+          session: debugSid
         })
       });
       const dataE = await respE.json().catch(() => respE.text());
