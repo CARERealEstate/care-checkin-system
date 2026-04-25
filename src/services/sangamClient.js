@@ -535,13 +535,15 @@ async function testAPIEndpoints() {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formBody.toString()
       });
-      const dataA = await respA.json().catch(() => respA.text());
+      const textA = await respA.text();
+        let dataA;
+        try { dataA = JSON.parse(textA); } catch { dataA = { text: textA.substring(0, 200) }; }
       results.push({
         endpoint: 'RAW-A: form-urlencoded + rest_data string',
         status: respA.status,
         success: respA.ok,
         elapsed: `${Date.now() - startA}ms`,
-        response: typeof dataA === 'string' ? { text: dataA.substring(0, 200) } : dataA
+        response: dataA
       });
     } catch(e) { results.push({ endpoint: 'RAW-A', success: false, response: { error: e.message } }); }
 
@@ -562,13 +564,15 @@ async function testAPIEndpoints() {
           token: SANGAM_API_TOKEN
         })
       });
-      const dataB = await respB.json().catch(() => respB.text());
+      const textB = await respB.text();
+        let dataB;
+        try { dataB = JSON.parse(textB); } catch { dataB = { text: textB.substring(0, 200) }; }
       results.push({
         endpoint: 'RAW-B: JSON body + rest_data as string',
         status: respB.status,
         success: respB.ok,
         elapsed: `${Date.now() - startB}ms`,
-        response: typeof dataB === 'string' ? { text: dataB.substring(0, 200) } : dataB
+        response: dataB
       });
     } catch(e) { results.push({ endpoint: 'RAW-B', success: false, response: { error: e.message } }); }
 
@@ -593,13 +597,15 @@ async function testAPIEndpoints() {
           token: SANGAM_API_TOKEN
         })
       });
-      const dataC = await respC.json().catch(() => respC.text());
+      const textC = await respC.text();
+        let dataC;
+        try { dataC = JSON.parse(textC); } catch { dataC = { text: textC.substring(0, 200) }; }
       results.push({
         endpoint: 'RAW-C: Flat JSON no rest_data',
         status: respC.status,
         success: respC.ok,
         elapsed: `${Date.now() - startC}ms`,
-        response: typeof dataC === 'string' ? { text: dataC.substring(0, 200) } : dataC
+        response: dataC
       });
     } catch(e) { results.push({ endpoint: 'RAW-C', success: false, response: { error: e.message } }); }
 
@@ -622,13 +628,15 @@ async function testAPIEndpoints() {
           token: SANGAM_API_TOKEN
         })
       });
-      const dataD = await respD.json().catch(() => respD.text());
+      const textD = await respD.text();
+        let dataD;
+        try { dataD = JSON.parse(textD); } catch { dataD = { text: textD.substring(0, 200) }; }
       results.push({
         endpoint: 'RAW-D: session in URL query',
         status: respD.status,
         success: respD.ok,
         elapsed: `${Date.now() - startD}ms`,
-        response: typeof dataD === 'string' ? { text: dataD.substring(0, 200) } : dataD
+        response: dataD
       });
     } catch(e) { results.push({ endpoint: 'RAW-D', success: false, response: { error: e.message } }); }
 
@@ -649,13 +657,15 @@ async function testAPIEndpoints() {
           session: debugSid
         })
       });
-      const dataE = await respE.json().catch(() => respE.text());
+      const textE = await respE.text();
+        let dataE;
+        try { dataE = JSON.parse(textE); } catch { dataE = { text: textE.substring(0, 200) }; }
       results.push({
         endpoint: 'RAW-E: Session as Bearer, minimal body',
         status: respE.status,
         success: respE.ok,
         elapsed: `${Date.now() - startE}ms`,
-        response: typeof dataE === 'string' ? { text: dataE.substring(0, 200) } : dataE
+        response: dataE
       });
     } catch(e) { results.push({ endpoint: 'RAW-E', success: false, response: { error: e.message } }); }
   }
